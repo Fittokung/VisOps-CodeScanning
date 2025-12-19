@@ -26,3 +26,11 @@
 2. ไม่มีการ scan จริง
 3. ไม่มี container / runner
 4. ไม่มี user / auth
+
+### Step ที่จะทำต่อ
+1.	ปรับ Mock Backend API เป็น API ของจริง
+2.	Scan
+3.	Pipeline
+4.	Container Build
+5.	Security
+6.	Auth / User
