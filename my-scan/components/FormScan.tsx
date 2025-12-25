@@ -1,14 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, AlertTriangle, X, Loader2 } from "lucide-react"; // ใช้ Icon สวยๆ
+import { Trash2, AlertTriangle, X, Loader2, Tag, Box } from "lucide-react";
 
 type Props = {
   buildMode: boolean;
 };
 
-// Type ของ Project ที่ Backend ส่งมาให้
+// Type ของ Project ที่ Backend ส่งมาให้ (สำหรับ Modal)
 type ProjectItem = {
   id: number;
   name: string;
@@ -17,34 +17,64 @@ type ProjectItem = {
 };
 
 export default function FormScan({ buildMode }: Props) {
+  const router = useRouter();
+
+  // --- State หลัก ---
   const [repoUrl, setRepoUrl] = useState("");
   const [dockerUser, setDockerUser] = useState("");
   const [dockerToken, setDockerToken] = useState("");
+  
+  // --- State ใหม่ (เพิ่มส่วนนี้) ---
+  const [projectName, setProjectName] = useState(""); 
+  const [imageTag, setImageTag] = useState("latest");
+
   const [loading, setLoading] = useState(false);
   
   // --- State สำหรับ Modal แจ้งเตือน Limit ---
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [limitProjects, setLimitProjects] = useState<ProjectItem[]>([]);
   const [limitMessage, setLimitMessage] = useState("");
-  const [deletingId, setDeletingId] = useState<number | null>(null); // สถานะกำลังลบ ID ไหน
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  const router = useRouter();
+  // Auto-detect Project Name จาก URL
+  useEffect(() => {
+    if (!repoUrl) {
+      setProjectName("");
+      return;
+    }
+    try {
+      const parts = repoUrl.trim().split("/");
+      let name = parts[parts.length - 1];
+      if (name.endsWith(".git")) {
+        name = name.replace(".git", "");
+      }
+      setProjectName(name || "scanned-project");
+    } catch (e) {
+      setProjectName("scanned-project");
+    }
+  }, [repoUrl]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
 
+    const cleanTag = imageTag.trim() || "latest";
+
+    // Prepare Payload
     const payload: any = {
       repoUrl,
       buildAfterScan: buildMode,
+      // ส่งค่าใหม่ไป Backend
+      projectName: projectName,
+      imageTag: cleanTag
     };
+
     if (buildMode) {
       payload.dockerUsername = dockerUser;
       payload.dockerAccessToken = dockerToken;
     }
 
     try {
-      // ยิงไปที่ Path ของคุณ (/api/scan/start)
       const res = await fetch("/api/scan/start", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -63,8 +93,7 @@ export default function FormScan({ buildMode }: Props) {
         setLimitProjects(j.projects || []);
         setShowLimitModal(true);
       } else {
-        // Error อื่นๆ
-        alert("Failed to start scan: " + (j.error || JSON.stringify(j)));
+        alert("Failed to start scan: " + (j.message || j.error));
       }
     } catch (err) {
       setLoading(false);
@@ -72,19 +101,17 @@ export default function FormScan({ buildMode }: Props) {
     }
   }
 
-  // ฟังก์ชันสั่งลบโปรเจกต์
+  // ฟังก์ชันสั่งลบโปรเจกต์ (Logic เดิมของคุณ)
   async function handleDelete(id: number) {
     if (!confirm("Confirm deletion of this project?")) return;
     
     setDeletingId(id);
     try {
-      // ยิงไปที่ DELETE API ที่คุณสร้างไว้
       const res = await fetch(`/api/scan/${id}`, {
         method: "DELETE",
       });
 
       if (res.ok) {
-        // ลบสำเร็จ: เอาออกจาก list ในหน้าจอ
         setLimitProjects((prev) => prev.filter((p) => p.id !== id));
       } else {
         const j = await res.json();
@@ -100,64 +127,100 @@ export default function FormScan({ buildMode }: Props) {
   return (
     <>
       {/* --- ฟอร์มหลัก --- */}
-      <form onSubmit={onSubmit} className="max-w-xl mx-auto p-4 space-y-4">
+      <form onSubmit={onSubmit} className="max-w-xl mx-auto p-4 space-y-5">
+        
+        {/* 1. Repo URL & Project Name */}
         <div>
-          <label className="block mb-1 font-medium">Git repository URL</label>
+          <label className="block mb-1.5 font-medium text-slate-700">Git Repository URL</label>
           <input
             type="url"
             value={repoUrl}
             onChange={(e) => setRepoUrl(e.target.value)}
             placeholder="https://github.com/owner/repo"
             required
-            className="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+            className="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 outline-none transition"
           />
+          {projectName && (
+            <div className="mt-2 flex items-center gap-2 text-sm text-slate-600 bg-slate-50 p-2 rounded border border-slate-100">
+               <Box size={14} className="text-blue-500"/>
+               <span>Project Name: <strong>{projectName}</strong></span>
+            </div>
+          )}
         </div>
 
         {buildMode && (
-          <>
-            <div>
-              <label className="block mb-1 font-medium">Docker username</label>
-              <input
-                value={dockerUser}
-                onChange={(e) => setDockerUser(e.target.value)}
-                placeholder="dockerhub username"
-                required
-                className="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-              />
+          <div className="space-y-4 pt-2 border-t border-slate-100">
+             <div className="bg-blue-50 p-3 rounded-md border border-blue-100">
+                <p className="text-xs font-semibold text-blue-800 uppercase tracking-wide mb-1">Target Image Preview</p>
+                <p className="font-mono text-sm text-blue-900 break-all">
+                   index.docker.io/{dockerUser || "<user>"}/{projectName || "<project>"}:{imageTag || "latest"}
+                </p>
+             </div>
+
+            {/* Docker Creds */}
+            <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2 sm:col-span-1">
+                    <label className="block mb-1.5 font-medium text-slate-700">Docker Username</label>
+                    <input
+                        value={dockerUser}
+                        onChange={(e) => setDockerUser(e.target.value)}
+                        placeholder="dockerhub user"
+                        required
+                        className="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                    <label className="block mb-1.5 font-medium text-slate-700">Docker Access Token</label>
+                    <input
+                        value={dockerToken}
+                        onChange={(e) => setDockerToken(e.target.value)}
+                        placeholder="secret token"
+                        required
+                        type="password"
+                        className="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                </div>
             </div>
+
+            {/* Tag Input (New) */}
             <div>
-              <label className="block mb-1 font-medium">
-                Docker access token
+              <label className="block mb-1.5 font-medium text-slate-700 flex items-center gap-2">
+                 <Tag size={16} /> Target Image Tag
               </label>
-              <input
-                value={dockerToken}
-                onChange={(e) => setDockerToken(e.target.value)}
-                placeholder="secret token"
-                required
-                type="password"
-                className="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                    type="text"
+                    value={imageTag}
+                    onChange={(e) => setImageTag(e.target.value)}
+                    placeholder="latest"
+                    className="flex-1 border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+                <span className="text-xs text-slate-400 bg-slate-50 px-2 py-2 rounded border">Default: latest</span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1 pl-1">
+                * If critical vulnerabilities are found, <code>-warning</code> will be appended automatically.
+              </p>
             </div>
-          </>
+          </div>
         )}
 
-        <div className="flex items-center gap-2 pt-2">
+        <div className="pt-2">
           <button 
             disabled={loading}
-            className="inline-flex items-center gap-2 bg-slate-800 text-white px-6 py-2.5 rounded-md shadow hover:bg-slate-700 disabled:opacity-60 transition-all"
+            className="w-full flex justify-center items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-lg shadow-md hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed transition-all font-medium"
           >
             {loading ? (
                <>
-                 <Loader2 className="animate-spin" size={18} /> Starting...
+                 <Loader2 className="animate-spin" size={20} /> Starting Pipeline...
                </>
             ) : (
-               "Start Scan"
+               "Start Security Scan"
             )}
           </button>
         </div>
       </form>
 
-      {/* --- Modal แจ้งเตือน Limit Reached --- */}
+      {/* --- Modal แจ้งเตือน Limit Reached (เหมือนเดิม) --- */}
       {showLimitModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[80vh]">
