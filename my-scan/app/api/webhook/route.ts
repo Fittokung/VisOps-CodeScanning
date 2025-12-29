@@ -4,30 +4,53 @@ import { prisma } from "@/lib/prisma";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log("[Webhook] Received payload:", body);
+    console.log("[Webhook] Payload:", JSON.stringify(body, null, 2));
 
-    const { scanId, status, vulnCritical, details } = body;
+    const { pipelineId, status, vulnCritical, details } = body;
 
-    if (!scanId || !status) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    if (!pipelineId || !status) {
+      return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
 
-    // อัปเดตสถานะใน Database โดยอ้างอิงจาก GitLab Project ID (scanId)
-    const updated = await prisma.scanHistory.updateMany({
-      where: { 
-        scanId: scanId.toString() 
-      },
-      data: {
-        status: status, // SUCCESS หรือ FAILED
-        vulnCritical: Number(vulnCritical) || 0,
-        details: details || {}, // ข้อมูลเพิ่มเติม (ถ้ามี)
-        updatedAt: new Date()
-      }
+    const scanRecord = await prisma.scanHistory.findFirst({
+        where: { pipelineId: pipelineId.toString() }
     });
 
-    console.log(`[Webhook] Updated ${updated.count} record(s) for Project ${scanId}`);
+    if (!scanRecord) {
+        return NextResponse.json({ error: "Record Not Found" }, { status: 404 });
+    }
 
+    // --- LOGIC ใหม่: Merge Findings ---
+    const currentDetails: any = scanRecord.details || { findings: [], logs: [] };
+    const newFindings = details?.findings || [];
+    const newLogs = details?.logs || [];
+
+    // รวมของเก่า + ของใหม่ (กรองอันที่ซ้ำออกถ้าจำเป็น แต่เบื้องต้น concat ไปเลย)
+    const mergedFindings = [...(currentDetails.findings || []), ...newFindings];
+    const mergedLogs = [...(currentDetails.logs || []), ...newLogs];
+
+    const updateData: any = {
+        status: status,
+        updatedAt: new Date(),
+        details: {
+            ...currentDetails,
+            findings: mergedFindings, // บันทึกแบบรวม
+            logs: mergedLogs
+        }
+    };
+
+    if (vulnCritical !== undefined) {
+        updateData.vulnCritical = Number(vulnCritical);
+    }
+
+    await prisma.scanHistory.update({
+      where: { id: scanRecord.id },
+      data: updateData
+    });
+
+    console.log(`[Webhook] Pipeline ${pipelineId} updated. Total Findings: ${mergedFindings.length}`);
     return NextResponse.json({ success: true });
+
   } catch (err: any) {
     console.error("[Webhook] Error:", err);
     return NextResponse.json({ error: "Server Error" }, { status: 500 });

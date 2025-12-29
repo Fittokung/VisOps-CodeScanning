@@ -7,35 +7,109 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ---------------------------------------------------------
+// 1. Admin Configuration
+// ---------------------------------------------------------
+
 // เก็บ Template Dockerfile (Admin แก้ได้)
 model DockerTemplate {
   id        String   @id @default(uuid())
-  stack     String   @unique // node, python, java
+  stack     String   @unique // node, python, java, go, default
   content   String   // เนื้อหา Dockerfile
   updatedAt DateTime @updatedAt
 }
 
-// เก็บประวัติการสแกน (User Scan History)
-model ScanHistory {
-  id          String   @id @default(uuid())
+// ---------------------------------------------------------
+// 2. User & Project Structure
+// ---------------------------------------------------------
 
-  userName     String   @default("anonymous")
+// เก็บข้อมูลผู้ใช้ (เพื่อเช็ค Quota 6 Images)
+model UserProfile {
+  email     String         @id
+  groups    ProjectGroup[] // 1 User มีได้หลาย Project Groups
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+}
+
+// ตัวแทนของ "Git Repository" (Project ใหญ่)
+// เก็บ Git Creds ที่นี่ เพราะใช้ร่วมกันในทุก Service ลูก
+model ProjectGroup {
+  id        String   @id @default(uuid())
+  groupName String   // ชื่อโปรเจกต์ที่ตั้งเอง เช่น "E-Commerce-App"
+  repoUrl   String   // https://github.com/user/repo.git
+
+  // Git Credentials (Encrypted)
+  isPrivate Boolean  @default(false)
+  gitUser   String?
+  gitToken  String?  // เก็บแบบ Encrypted
+
+  // Relation to User
+  userEmail String
+  user      UserProfile @relation(fields: [userEmail], references: [email])
+
+  // Relation to Services
+  services  ProjectService[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ตัวแทนของ "Docker Image" หรือ "Service ย่อย"
+// เช่น Backend, Frontend (นับ Quota จากตารางนี้)
+model ProjectService {
+  id          String   @id @default(uuid())
+  serviceName String   // ชื่อ Service เช่น "backend-api"
+  contextPath String   // โฟลเดอร์ที่จะ Build เช่น "./backend" (หรือ "." ถ้าเป็น Root)
   
-  // ข้อมูล Project & User
-  userName    String   // ใครเป็นคนสั่งสแกน
-  repoUrl     String
-  projectName String
+  // Docker Configuration
+  imageName   String   // ชื่อ Image ปลายทาง (index.docker.io/user/repo)
   
-  // ข้อมูล Image
-  imageTag    String
-  
-  // สถานะและผลลัพธ์
-  status      String   @default("PENDING") // PENDING, SUCCESS, FAILED
-  scanId      String   // GitLab Project ID
-  pipelineId  String?  
-  vulnCritical Int     @default(0)
-  details      Json?   // เก็บ Error log หรือข้อมูลเพิ่มเติม
-  
+  // Docker Credentials (Encrypted) 
+  // แยกเก็บที่นี่ เผื่อแต่ละ Service ใช้ User/Registry ต่างกัน
+  dockerUser  String?
+  dockerToken String?  // เก็บแบบ Encrypted
+
+  // Custom Dockerfile (ถ้า User แก้ไขเอง)
+  useCustomDockerfile Boolean @default(false)
+  dockerfileContent   String? // เก็บเนื้อหาที่แก้
+
+  // Relation to Group
+  groupId     String
+  group       ProjectGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  // Relation to History
+  scans       ScanHistory[]
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// ---------------------------------------------------------
+// 3. Scan Results (History)
+// ---------------------------------------------------------
+
+// เก็บประวัติการสแกน (ผูกกับ Service)
+model ScanHistory {
+  id            String   @id @default(uuid())
+
+  // เชื่อมกับ Service ไหน
+  serviceId     String
+  service       ProjectService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  // ข้อมูล ณ ตอนสแกน (Snapshot)
+  status        String   @default("PENDING") // PENDING, SUCCESS, FAILED, BLOCKED
+  
+  // ข้อมูล Pipeline
+  scanId        String   // GitLab Project ID
+  pipelineId    String?  // GitLab Pipeline ID (#123)
+  
+  // ผลลัพธ์ความปลอดภัย
+  vulnCritical  Int      @default(0)
+  vulnHigh      Int      @default(0)
+  imageTag      String   // Tag ที่ถูกสร้างในรอบนี้ (เช่น v1.0, latest-abc)
+  
+  details       Json?    // เก็บ Error log หรือข้อมูลเพิ่มเติม
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
