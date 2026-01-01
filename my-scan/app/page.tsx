@@ -4,8 +4,8 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { Shield, Container, TrendingUp, ArrowRight } from "lucide-react";
 import Link from "next/link";
-import TutorialSlider from "@/components/TutorialSlider";
 
 export default function Home() {
   const { data: session, status } = useSession();
@@ -25,36 +25,28 @@ export default function Home() {
 
   // Show landing page for unauthenticated users
   if (status === "loading") {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Loading...</div>
-      </div>
-    );
+    return null;
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-gray-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-6xl">
+    <main className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+      <div className="w-full max-w-4xl">
         {/* Hero Section */}
-        <div className="text-center mb-12">
-          <div className="flex items-center justify-center mb-6">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-bold text-3xl shadow-lg">
-              VS
-            </div>
+        <div className="text-center mb-16">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-6">
+            <Shield className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-5xl font-bold text-gray-900 mb-4">
-            VisOps Code Scanning Platform
-          </h1>
-          <p className="text-xl text-gray-600 mb-8">
-            Enterprise-grade security scanning for your code and containers
+          <h1 className="text-4xl font-bold text-gray-900 mb-3">VisOps Scan</h1>
+          <p className="text-gray-600 text-lg mb-8">
+            Automated security scanning and vulnerability detection
           </p>
 
           {/* Login Button */}
           <Link
             href="/login"
-            className="inline-flex items-center gap-3 px-8 py-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 shadow-lg hover:shadow-xl transition transform hover:scale-105"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition"
           >
-            <svg className="w-6 h-6" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
                 fill="white"
@@ -72,53 +64,47 @@ export default function Home() {
                 fill="white"
               />
             </svg>
-            Login with Google
+            Continue with Google
           </Link>
         </div>
 
-        {/* Tutorial Section */}
-        <div className="mb-12">
-          <TutorialSlider />
-        </div>
-
         {/* Features Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100">
-            <div className="text-3xl mb-3">🔍</div>
-            <h3 className="text-lg font-semibold mb-2">Security Scanning</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
+          <div className="bg-white p-6 rounded-lg border border-gray-200">
+            <Shield className="w-6 h-6 text-blue-600 mb-3" />
+            <h3 className="font-semibold mb-1 text-gray-900">
+              Security Scanning
+            </h3>
             <p className="text-sm text-gray-600">
-              Comprehensive security analysis with Gitleaks, Semgrep, and Trivy
+              Gitleaks, Semgrep, and Trivy integration
             </p>
           </div>
-          <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100">
-            <div className="text-3xl mb-3">🐳</div>
-            <h3 className="text-lg font-semibold mb-2">Container Scanning</h3>
+          <div className="bg-white p-6 rounded-lg border border-gray-200">
+            <Container className="w-6 h-6 text-blue-600 mb-3" />
+            <h3 className="font-semibold mb-1 text-gray-900">
+              Container Scanning
+            </h3>
             <p className="text-sm text-gray-600">
-              Build Docker images securely and scan for vulnerabilities
+              Docker image vulnerability detection
             </p>
           </div>
-          <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100">
-            <div className="text-3xl mb-3">📊</div>
-            <h3 className="text-lg font-semibold mb-2">History & Reports</h3>
+          <div className="bg-white p-6 rounded-lg border border-gray-200">
+            <TrendingUp className="w-6 h-6 text-blue-600 mb-3" />
+            <h3 className="font-semibold mb-1 text-gray-900">Scan History</h3>
             <p className="text-sm text-gray-600">
-              Track scan history and compare results over time
+              Track and compare results over time
             </p>
           </div>
         </div>
 
         {/* CTA Section */}
-        <div className="text-center bg-blue-50 rounded-2xl p-8 border border-blue-100">
-          <h2 className="text-2xl font-bold text-gray-900 mb-3">
-            Ready to secure your code?
-          </h2>
-          <p className="text-gray-600 mb-6">
-            Get started in minutes with Google authentication
-          </p>
+        <div className="text-center">
           <Link
             href="/login"
-            className="inline-block px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
+            className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium text-sm"
           >
-            Get Started →
+            Get Started
+            <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
       </div>
