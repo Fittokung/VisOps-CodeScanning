@@ -514,43 +514,30 @@ build_and_push:
       # Priority 4: Dockerfile in root directory (for monorepo multi-stage builds)
       elif [ -f "Dockerfile" ]; then
         echo "✅ USING: Root Dockerfile (monorepo/multi-stage build)"
+        DOCKERFILE_PATH="Dockerfile"
         if [ "$CONTEXT_PATH" != "." ]; then
-          echo "   Note: Building with root Dockerfile, context=$CONTEXT_PATH"
-          # Keep root Dockerfile path but set context correctly
-          DOCKERFILE_PATH="Dockerfile"
-        else
-          DOCKERFILE_PATH="Dockerfile"
+          echo "   ⚠️  OVERRIDING context: $CONTEXT_PATH → . (root required for monorepo Dockerfile)"
+          CONTEXT_PATH="."
         fi
         
-      # Priority 5: ONLY generate if NO Dockerfile exists anywhere
+      # Priority 5: NO Dockerfile found - Skip container build
       else
-        echo "⚠️  NO DOCKERFILE FOUND - Generating basic template for $STACK"
-        echo "   (This should rarely happen - user should provide Dockerfile)"
-        
-        # Minimal generation as last resort
-        mkdir -p "$CONTEXT_PATH"
-        if [ "$STACK" = "java-maven" ] || [ "$STACK" = "java-gradle" ]; then
-           JAR_FILE_PATH=$(cat .jar_path | sed "s|$CONTEXT_PATH/||")
-           echo "FROM eclipse-temurin:21-jre-alpine" > "$DOCKERFILE_PATH"
-           echo "WORKDIR /app" >> "$DOCKERFILE_PATH"
-           echo "COPY $JAR_FILE_PATH app.jar" >> "$DOCKERFILE_PATH"
-           echo 'ENTRYPOINT ["java", "-jar", "app.jar"]' >> "$DOCKERFILE_PATH"
-        elif [ "$STACK" = "node" ]; then
-           echo "FROM node:$NODE_VERSION" > "$DOCKERFILE_PATH"
-           echo "WORKDIR /app" >> "$DOCKERFILE_PATH"
-           echo "COPY . ." >> "$DOCKERFILE_PATH"
-           echo "CMD [\"npm\", \"start\"]" >> "$DOCKERFILE_PATH"
-        else
-           echo "FROM alpine:latest" > "$DOCKERFILE_PATH"
-           echo "WORKDIR /app" >> "$DOCKERFILE_PATH"
-           echo "COPY . ." >> "$DOCKERFILE_PATH"
-        fi
+        echo "⚠️  NO DOCKERFILE FOUND"
+        echo "   Skipping container build - will only perform source code scanning"
+        echo "   Provide a Dockerfile if you want container image scanning and deployment"
+        echo "SKIP_DOCKER_BUILD" > .skip_docker_build
       fi
 
       echo "========================================="
       echo "Final Dockerfile: $DOCKERFILE_PATH"
       echo "Build Context: $CI_PROJECT_DIR/$CONTEXT_PATH"
       echo "========================================="
+
+    - |
+      if [ -f .skip_docker_build ]; then
+        echo "⚠️  Skipping Docker build (no Dockerfile provided)"
+        exit 0
+      fi
 
       echo "========================================="
 
@@ -565,10 +552,26 @@ build_and_push:
     - echo "{\"auths\":{\"https://index.docker.io/v1/\":{\"auth\":\"$AUTH_STR\"},\"index.docker.io\":{\"auth\":\"$AUTH_STR\"}}}" > /kaniko/.docker/config.json
 
     - |
+      # Detect if Dockerfile has multi-stage build
+      BUILD_TARGET=""
+      if grep -q "AS runner" "$CI_PROJECT_DIR/$DOCKERFILE_PATH" 2>/dev/null; then
+        BUILD_TARGET="--target runner"
+        echo "📦 Multi-stage build detected - targeting 'runner' stage"
+      elif grep -q "AS final" "$CI_PROJECT_DIR/$DOCKERFILE_PATH" 2>/dev/null; then
+        BUILD_TARGET="--target final"
+        echo "📦 Multi-stage build detected - targeting 'final' stage"
+      elif grep -q "AS production" "$CI_PROJECT_DIR/$DOCKERFILE_PATH" 2>/dev/null; then
+        BUILD_TARGET="--target production"
+        echo "📦 Multi-stage build detected - targeting 'production' stage"
+      else
+        echo "📦 Single-stage build or final stage will be used by default"
+      fi
+
       /kaniko/executor \
         --context "$CI_PROJECT_DIR/$CONTEXT_PATH" \
         --dockerfile "$CI_PROJECT_DIR/$DOCKERFILE_PATH" \
         --destination "$IMAGE_NAME:$TEMP_IMAGE_TAG" \
+        $BUILD_TARGET \
         --cache=true \
         --cache-ttl=24h \
         --snapshot-mode=redo \

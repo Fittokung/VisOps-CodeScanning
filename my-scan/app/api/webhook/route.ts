@@ -155,6 +155,14 @@ export async function POST(req: Request) {
       finalStatus = "FAILED_SECURITY";
     }
 
+    // Handle CANCELLED/CANCELED status from GitLab
+    if (
+      status.toUpperCase() === "CANCELLED" ||
+      status.toUpperCase() === "CANCELED"
+    ) {
+      finalStatus = "CANCELLED";
+    }
+
     // Prepare update data
     const updateData: any = {
       status: finalStatus,
@@ -173,7 +181,15 @@ export async function POST(req: Request) {
     };
 
     // Set completion time if final status
-    if (["SUCCESS", "FAILED", "FAILED_SECURITY"].includes(finalStatus)) {
+    if (
+      [
+        "SUCCESS",
+        "FAILED",
+        "FAILED_SECURITY",
+        "CANCELLED",
+        "CANCELED",
+      ].includes(finalStatus)
+    ) {
       updateData.completedAt = new Date();
 
       // Auto-delete old scans (keep only 2 most recent per service)
