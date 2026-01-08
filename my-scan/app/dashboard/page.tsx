@@ -102,8 +102,17 @@ export default function DashboardPage() {
       router.replace("/login"); // Use replace for auth redirects (no back button to protected page)
     } else if (status === "authenticated") {
       fetchDashboardData();
-      const interval = setInterval(fetchActiveScans, 5000);
-      return () => clearInterval(interval);
+
+      // Refresh active scans every 5 seconds
+      const activeScansInterval = setInterval(fetchActiveScans, 5000);
+
+      // Refresh full dashboard data every 15 seconds
+      const dashboardInterval = setInterval(fetchDashboardData, 15000);
+
+      return () => {
+        clearInterval(activeScansInterval);
+        clearInterval(dashboardInterval);
+      };
     }
   }, [status, router]);
 
@@ -147,8 +156,8 @@ export default function DashboardPage() {
     forceStop: boolean = false
   ) => {
     const confirmMsg = forceStop
-      ? "This will stop all active scans and delete the project. Continue?"
-      : "Delete this project? (Soft delete - history will be preserved)";
+      ? "This will stop all active scans and permanently delete the project. Continue?"
+      : "Are you sure you want to delete this project?\n\n⚠️ This will:\n• Remove the project from your dashboard\n• Keep scan history for reference (soft delete)\n\nTo permanently delete, contact administrator.";
 
     if (!confirm(confirmMsg)) return;
 
@@ -161,13 +170,17 @@ export default function DashboardPage() {
       });
 
       if (response.ok) {
-        showToast("Project deleted successfully", "success");
+        showToast("Project removed from dashboard", "success");
         fetchDashboardData();
       } else {
         const error = await response.json();
         if (error.hasActiveScans && !forceStop) {
           if (
-            confirm("This project has active scans. Force stop and delete?")
+            confirm(
+              `This project has ${
+                error.activeCount || "active"
+              } scan(s) running.\n\nDo you want to force stop all scans and delete?`
+            )
           ) {
             handleDeleteProject(projectId, true);
             return;
@@ -508,23 +521,36 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Add New Project Card */}
-            <Link
-              href="/scan/build"
-              className="bg-white rounded-xl border-2 border-dashed border-slate-300 hover:border-blue-400 hover:bg-blue-50/30 overflow-hidden transition-all duration-200 flex items-center justify-center min-h-[300px] group cursor-pointer"
-            >
-              <div className="text-center p-6">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 group-hover:bg-blue-200 transition mb-4">
+            {/* Add New Project Card - With Mode Selection */}
+            <div className="bg-white rounded-xl border-2 border-dashed border-slate-300 hover:border-blue-400 overflow-hidden transition-all duration-200 flex items-center justify-center min-h-[300px]">
+              <div className="text-center p-6 w-full">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-4">
                   <Plus className="w-8 h-8 text-blue-600" />
                 </div>
-                <h3 className="text-lg font-semibold text-slate-700 group-hover:text-blue-600 transition">
+                <h3 className="text-lg font-semibold text-slate-700 mb-2">
                   Create New Project
                 </h3>
-                <p className="text-sm text-slate-500 mt-2">
-                  Add a new repository to scan
+                <p className="text-sm text-slate-500 mb-6">
+                  Choose your scanning mode
                 </p>
+                <div className="flex flex-col gap-2">
+                  <Link
+                    href="/scan/build"
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-sm"
+                  >
+                    <Package className="w-4 h-4" />
+                    Scan & Build
+                  </Link>
+                  <Link
+                    href="/scan/scanonly"
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition font-medium text-sm"
+                  >
+                    <Shield className="w-4 h-4" />
+                    Scan Only
+                  </Link>
+                </div>
               </div>
-            </Link>
+            </div>
 
             {/* Existing Project Cards */}
             {projects.map((project) => (
@@ -532,21 +558,24 @@ export default function DashboardPage() {
                 key={project.id}
                 className="bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-lg hover:border-slate-300 transition-all duration-200 group"
               >
-                {/* Project Header - Clickable */}
-                <Link
-                  href={`/scan/history?projectId=${project.id}`}
-                  className="block bg-gradient-to-r from-slate-800 to-slate-900 text-white p-5 cursor-pointer"
-                >
+                {/* Project Header - Shows Info Only */}
+                <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white p-5">
                   <div className="flex justify-between items-start">
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-bold truncate group-hover:text-blue-300 transition">
+                      <h3 className="text-lg font-bold truncate">
                         {project.groupName}
                       </h3>
                       <p className="text-slate-400 text-xs mt-1 truncate">
                         {project.repoUrl}
                       </p>
                     </div>
-                    <ExternalLink className="w-4 h-4 text-slate-400 group-hover:text-white transition flex-shrink-0 ml-2" />
+                    <Link
+                      href={`/scan/history?projectId=${project.id}`}
+                      className="text-slate-400 hover:text-white transition flex-shrink-0 ml-2"
+                      title="View History"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </Link>
                   </div>
                   <div className="mt-3 flex items-center gap-2">
                     <span className="text-xs bg-slate-700 px-2 py-0.5 rounded">
@@ -564,7 +593,7 @@ export default function DashboardPage() {
                       </span>
                     )}
                   </div>
-                </Link>
+                </div>
 
                 {/* Services List */}
                 <div className="p-4">

@@ -231,176 +231,272 @@ function ScanHistoryContent() {
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
+          <div className="flex items-center gap-3 mb-3">
             <button
               onClick={() => router.back()}
-              className="p-2 hover:bg-gray-100 rounded-lg transition"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Go back"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <ArrowLeft className="w-5 h-5 text-gray-700" />
             </button>
-            <h1 className="text-2xl font-bold text-gray-900">Scan History</h1>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Scan History</h1>
+              <p className="text-gray-500 text-sm mt-1">
+                {serviceId
+                  ? "Viewing scans for a specific service"
+                  : `All your security scans (${scans.length} total)`}
+              </p>
+            </div>
           </div>
-          <p className="text-gray-500 text-sm ml-14">
-            {serviceId ? "Service specific scans" : "All scans"}
-          </p>
         </div>
 
         {/* Compare Button */}
         {selectedScans.length === 2 && (
-          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5 shadow-sm">
             <div className="flex justify-between items-center">
-              <span className="text-blue-900 font-medium">
-                2 scans selected for comparison
-              </span>
+              <div>
+                <span className="text-blue-900 font-semibold text-lg">
+                  2 scans selected for comparison
+                </span>
+                <p className="text-blue-700 text-sm mt-1">
+                  Compare vulnerabilities and changes between selected scans
+                </p>
+              </div>
               <button
                 onClick={handleCompare}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
+                className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold shadow-md hover:shadow-lg"
               >
-                Compare
+                Compare Scans
               </button>
             </div>
           </div>
         )}
 
+        {selectedScans.length === 1 && (
+          <div className="mb-6 bg-gray-50 border border-gray-200 rounded-xl p-4">
+            <p className="text-gray-600 text-sm">
+              Select one more scan to enable comparison
+            </p>
+          </div>
+        )}
+
         {/* Scans List */}
         {scans.length === 0 ? (
-          <div className="bg-white rounded-xl border p-12 text-center">
-            <Clock className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-            <p className="text-gray-500">No scan history yet</p>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-16 text-center">
+            <div className="max-w-md mx-auto">
+              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Clock className="w-10 h-10 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                No Scan History Yet
+              </h3>
+              <p className="text-gray-500 mb-6">
+                {serviceId
+                  ? "This service hasn't been scanned yet. Start a new scan to see results here."
+                  : "You haven't run any scans yet. Create a new project to get started."}
+              </p>
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
+              >
+                Go to Dashboard
+              </Link>
+            </div>
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+              <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Select
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Service
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Mode
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Tag
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Vulnerabilities
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Started
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {scans.map((scan) => (
-                  <tr key={scan.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <input
-                        type="checkbox"
-                        checked={selectedScans.includes(scan.id)}
-                        onChange={() => handleSelectScan(scan.id)}
-                        disabled={
-                          !selectedScans.includes(scan.id) &&
-                          selectedScans.length >= 2
-                        }
-                        className="h-4 w-4 text-blue-600 rounded"
-                      />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {scan.service.serviceName}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {scan.service.imageName}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-xs px-2 py-1 bg-gray-100 rounded">
-                        {scan.scanMode}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {scan.imageTag}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-1">
-                        {getStatusIcon(scan.status)}
-                        <span
-                          className={`px-2 py-1 text-xs font-medium rounded ${getStatusColor(
-                            scan.status
-                          )}`}
-                        >
-                          {scan.status}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex gap-2">
-                        {scan.vulnCritical > 0 && (
-                          <span className="text-red-600 font-bold">
-                            🔴 {scan.vulnCritical}
-                          </span>
-                        )}
-                        {scan.vulnHigh > 0 && (
-                          <span className="text-orange-600">
-                            🟠 {scan.vulnHigh}
-                          </span>
-                        )}
-                        {scan.vulnMedium > 0 && (
-                          <span className="text-yellow-600">
-                            🟡 {scan.vulnMedium}
-                          </span>
-                        )}
-                        {scan.vulnLow > 0 && (
-                          <span className="text-gray-600">
-                            ⚪ {scan.vulnLow}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {new Date(scan.startedAt).toLocaleString("th-TH")}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex items-center gap-2">
-                        {scan.pipelineId ? (
-                          <button
-                            onClick={() => handleViewDetails(scan)}
-                            className="text-blue-600 hover:underline hover:text-blue-800 transition"
-                          >
-                            ดูรายละเอียด
-                          </button>
-                        ) : (
-                          <span className="text-gray-400">ไม่มีข้อมูล</span>
-                        )}
+                {scans.map((scan) => {
+                  const totalVulns =
+                    scan.vulnCritical +
+                    scan.vulnHigh +
+                    scan.vulnMedium +
+                    scan.vulnLow;
 
-                        {/* Delete button - only for failed scans */}
-                        {isDeletable(scan.status) && (
-                          <button
-                            onClick={() => handleDelete(scan.id)}
-                            disabled={deletingId === scan.id}
-                            className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition disabled:opacity-50"
-                            title="Delete this scan record"
+                  return (
+                    <tr
+                      key={scan.id}
+                      className="hover:bg-blue-50 transition-colors cursor-pointer"
+                      onClick={() => scan.pipelineId && handleViewDetails(scan)}
+                    >
+                      <td
+                        className="px-6 py-4 whitespace-nowrap"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedScans.includes(scan.id)}
+                          onChange={() => handleSelectScan(scan.id)}
+                          disabled={
+                            !selectedScans.includes(scan.id) &&
+                            selectedScans.length >= 2
+                          }
+                          className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                          title={
+                            selectedScans.length >= 2 &&
+                            !selectedScans.includes(scan.id)
+                              ? "Maximum 2 scans can be selected"
+                              : "Select for comparison"
+                          }
+                        />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-semibold text-gray-900">
+                          {scan.service.serviceName}
+                        </div>
+                        <div className="text-xs text-gray-500 font-mono mt-0.5">
+                          {scan.service.imageName}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span
+                          className={`text-xs px-2.5 py-1.5 rounded-full font-medium ${
+                            scan.scanMode === "SCAN_ONLY"
+                              ? "bg-purple-100 text-purple-700"
+                              : "bg-blue-100 text-blue-700"
+                          }`}
+                          title={
+                            scan.scanMode === "SCAN_ONLY"
+                              ? "Security scan without image build"
+                              : "Security scan with Docker image build"
+                          }
+                        >
+                          {scan.scanMode}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 font-mono">
+                        {scan.imageTag}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-1">
+                          {getStatusIcon(scan.status)}
+                          <span
+                            className={`px-2 py-1 text-xs font-medium rounded ${getStatusColor(
+                              scan.status
+                            )}`}
                           >
-                            {deletingId === scan.id ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="w-4 h-4" />
-                            )}
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                            {scan.status}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <div className="flex gap-2 items-center">
+                          {totalVulns === 0 ? (
+                            <span className="text-green-600 font-medium flex items-center gap-1">
+                              <CheckCircle className="w-4 h-4" />
+                              Clean
+                            </span>
+                          ) : (
+                            <>
+                              {scan.vulnCritical > 0 && (
+                                <span
+                                  className="text-red-700 font-bold px-2 py-1 bg-red-50 rounded"
+                                  title={`${scan.vulnCritical} Critical vulnerabilities`}
+                                >
+                                  🔴 {scan.vulnCritical}
+                                </span>
+                              )}
+                              {scan.vulnHigh > 0 && (
+                                <span
+                                  className="text-orange-700 font-semibold px-2 py-1 bg-orange-50 rounded"
+                                  title={`${scan.vulnHigh} High vulnerabilities`}
+                                >
+                                  🟠 {scan.vulnHigh}
+                                </span>
+                              )}
+                              {scan.vulnMedium > 0 && (
+                                <span
+                                  className="text-yellow-700 px-2 py-1 bg-yellow-50 rounded"
+                                  title={`${scan.vulnMedium} Medium vulnerabilities`}
+                                >
+                                  🟡 {scan.vulnMedium}
+                                </span>
+                              )}
+                              {scan.vulnLow > 0 && (
+                                <span
+                                  className="text-gray-700 px-2 py-1 bg-gray-50 rounded text-xs"
+                                  title={`${scan.vulnLow} Low vulnerabilities`}
+                                >
+                                  ⚪ {scan.vulnLow}
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {new Date(scan.startedAt).toLocaleString("th-TH")}
+                      </td>
+                      <td
+                        className="px-6 py-4 whitespace-nowrap text-sm"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex items-center gap-2">
+                          {scan.pipelineId ? (
+                            <button
+                              onClick={() => handleViewDetails(scan)}
+                              className="text-blue-600 hover:text-blue-800 hover:underline transition font-medium"
+                            >
+                              View Details
+                            </button>
+                          ) : (
+                            <span
+                              className="text-gray-400"
+                              title="Pipeline data not available"
+                            >
+                              No data
+                            </span>
+                          )}
+
+                          {/* Delete button - only for failed scans */}
+                          {isDeletable(scan.status) && (
+                            <button
+                              onClick={() => handleDelete(scan.id)}
+                              disabled={deletingId === scan.id}
+                              className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
+                              title="Delete this failed scan"
+                            >
+                              {deletingId === scan.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-4 h-4" />
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

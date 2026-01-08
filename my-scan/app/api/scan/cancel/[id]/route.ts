@@ -58,11 +58,20 @@ export async function POST(
     const gitlabPipelineId = pipelineId;
 
     const gitlabToken = process.env.GITLAB_TOKEN || process.env.GITLAB_PAT;
-    const gitlabUrl = process.env.GITLAB_URL || "https://gitlab.com";
+    const gitlabUrl = (
+      process.env.GITLAB_URL ||
+      process.env.GITLAB_API_URL ||
+      "https://gitlab.com"
+    ).replace(/\/$/, "");
+
+    console.log(
+      `🔴 Attempting to cancel GitLab pipeline ${gitlabPipelineId} in project ${gitlabProjectId}`
+    );
 
     if (gitlabToken && gitlabProjectId) {
       try {
         const cancelUrl = `${gitlabUrl}/api/v4/projects/${gitlabProjectId}/pipelines/${gitlabPipelineId}/cancel`;
+        console.log(`Cancel URL: ${cancelUrl}`);
 
         const response = await fetch(cancelUrl, {
           method: "POST",
@@ -73,17 +82,24 @@ export async function POST(
         });
 
         if (!response.ok) {
+          const errorText = await response.text();
           console.error(
-            "GitLab cancel failed:",
-            response.status,
-            await response.text()
+            `❌ GitLab cancel failed: ${response.status} - ${errorText}`
           );
+          // Don't fail the entire operation if GitLab cancel fails
         } else {
-          console.log("✅ GitLab pipeline cancelled:", gitlabPipelineId);
+          console.log(
+            `✅ GitLab pipeline cancelled successfully: ${gitlabPipelineId}`
+          );
         }
       } catch (error) {
-        console.error("Error cancelling GitLab pipeline:", error);
+        console.error("❌ Error cancelling GitLab pipeline:", error);
+        // Don't fail the entire operation
       }
+    } else {
+      console.warn(
+        "⚠️  GitLab credentials missing - cannot cancel pipeline in GitLab"
+      );
     }
 
     // Update database status

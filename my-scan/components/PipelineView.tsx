@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, XCircle } from "lucide-react";
 
 import ConfirmBuildButton from "./ReleaseButton";
 import { Run, ComparisonData } from "./pipeline/types";
@@ -15,12 +15,21 @@ import { ComparisonSection } from "./pipeline/ComparisonSection";
 import { CriticalVulnerabilitiesBlock } from "./pipeline/CriticalVulnerabilitiesBlock";
 import { FindingsTable } from "./pipeline/FindingsTable";
 
-export default function PipelineView({ scanId }: { scanId: string }) {
+export default function PipelineView({
+  scanId,
+  scanMode,
+}: {
+  scanId: string;
+  scanMode?: string;
+}) {
   const [run, setRun] = useState<Run | null>(null);
   const [comparison, setComparison] = useState<ComparisonData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
+
+  // Log scanMode for debugging
+  console.log("🔍 PipelineView received scanMode:", scanMode);
 
   async function fetchComparison(serviceId: string) {
     try {
@@ -115,8 +124,16 @@ export default function PipelineView({ scanId }: { scanId: string }) {
         throw new Error(data.message || "Failed to cancel scan");
       }
 
+      // Fetch updated status after cancellation
       await fetchStatus();
-      alert("Scan cancelled successfully");
+
+      // Show success message
+      alert("Scan cancelled successfully. Redirecting to dashboard...");
+
+      // Redirect to dashboard after 1 second
+      setTimeout(() => {
+        window.location.href = "/dashboard";
+      }, 1000);
     } catch (err: any) {
       console.error("Cancel error:", err);
       alert(err.message || "Failed to cancel scan");
@@ -167,6 +184,16 @@ export default function PipelineView({ scanId }: { scanId: string }) {
   const isSuccess = run.status === "SUCCESS";
   const isCancelled = run.status === "CANCELLED" || run.status === "CANCELED";
   const isCancellable = isQueued || isScanning;
+  const isScanOnly = scanMode === "SCAN_ONLY"; // ตรวจสอบว่าเป็น SCAN_ONLY หรือไม่
+  
+  console.log("🎯 PipelineView state:", {
+    scanMode,
+    isScanOnly,
+    isSuccess,
+    isBlocked,
+    shouldShowRelease: !isScanOnly && isSuccess && !isBlocked
+  });
+  
   const totalFindings =
     run.counts.critical + run.counts.high + run.counts.medium + run.counts.low;
 
@@ -193,15 +220,31 @@ export default function PipelineView({ scanId }: { scanId: string }) {
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6 font-sans">
-      {/* {isCancellable && (
-        <CancelButton
-          onCancel={handleCancelScan}
-          isCancelling={isCancelling}
-          step={run.step}
-        />
-      )} */}
+      {/* Cancel Button - Always show when cancellable */}
+      {isCancellable && (
+        <div className="flex justify-end">
+          <button
+            onClick={handleCancelScan}
+            disabled={isCancelling}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition"
+          >
+            {isCancelling ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Cancelling...
+              </>
+            ) : (
+              <>
+                <XCircle className="w-4 h-4" />
+                Cancel Scan
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
-      {isSuccess && !isBlocked && (
+      {/* Release Button - ซ่อนสำหรับ SCAN_ONLY mode */}
+      {!isScanOnly && isSuccess && !isBlocked && (
         <div className="animate-in fade-in slide-in-from-top-4 duration-500">
           <ConfirmBuildButton scanId={scanId} />
         </div>

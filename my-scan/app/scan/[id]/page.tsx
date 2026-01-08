@@ -29,6 +29,7 @@ export default async function ScanPage(props: Props) {
       where: { pipelineId: id }, // เปลี่ยนจาก scanId เป็น pipelineId
       select: {
         status: true,
+        scanMode: true, // เพิ่ม scanMode เพื่อตรวจสอบว่าเป็น SCAN_ONLY หรือไม่
         service: {
           select: {
             group: {
@@ -44,6 +45,7 @@ export default async function ScanPage(props: Props) {
 
     console.log("📊 Query result:", scanData ? "Found" : "Not found");
     console.log("📊 Status:", scanData?.status);
+    console.log("📊 Scan Mode:", scanData?.scanMode);
 
     if (!scanData) {
       console.error("❌ No scan data found for pipeline:", id);
@@ -53,6 +55,10 @@ export default async function ScanPage(props: Props) {
     // สร้างตัวแปร repoUrl และ groupId เพื่อให้เรียกใช้ง่ายๆ ใน JSX
     const repoUrl = scanData?.service?.group?.repoUrl;
     const groupId = scanData?.service?.group?.id;
+    const scanMode = scanData?.scanMode; // เก็บ scanMode
+    const isScanOnly = scanMode === "SCAN_ONLY"; // ตรวจสอบว่าเป็น SCAN_ONLY หรือไม่
+
+    console.log("🔍 isScanOnly:", isScanOnly, "scanMode:", scanMode);
     const isQueued =
       scanData?.status === "QUEUED" || scanData?.status === "PENDING";
     const isCompleted =
@@ -85,10 +91,10 @@ export default async function ScanPage(props: Props) {
           {/* {!isQueued && <ScanStatusAlert scanId={id} />} */}
 
           {/* 1. แสดงผลกราฟและตาราง Pipeline */}
-          <PipelineView scanId={id} />
+          <PipelineView scanId={id} scanMode={scanMode} />
 
-          {/* 2. ส่วน Monorepo Action - แสดงตลอดเวลา (สามารถเพิ่ม service ได้ทันที) */}
-          {repoUrl && groupId && (
+          {/* 2. ส่วน Monorepo Action - ซ่อนสำหรับ SCAN_ONLY mode */}
+          {!isScanOnly && repoUrl && groupId && (
             <div className="pt-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
               <MonorepoAction
                 repoUrl={repoUrl}

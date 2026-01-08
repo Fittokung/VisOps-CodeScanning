@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import axios from "axios";
 import https from "https";
 import { prisma } from "@/lib/prisma";
+import { deleteBlockedImage } from "@/lib/imageCleanup";
 
 // --- Types ---
 type VulnerabilityFinding = {
@@ -290,6 +291,30 @@ export async function GET(
         logs.push(
           "🚨 Security Policy: Pipeline BLOCKED due to critical vulnerabilities."
         );
+
+        // 🗑️ Auto-delete blocked image
+        try {
+          const imageInfo = {
+            projectId: projectId,
+            pipelineId: id,
+            imageName: scanRecord.service?.imageName,
+            imageTag: "latest", // or extract from scan metadata
+          };
+
+          console.log(
+            `🗑️  Attempting to delete blocked image for pipeline ${id}`
+          );
+          const deleteResult = await deleteBlockedImage(imageInfo);
+
+          if (deleteResult.success) {
+            logs.push(`🗑️  ${deleteResult.message}`);
+          } else {
+            logs.push(`⚠️  Failed to delete image: ${deleteResult.message}`);
+          }
+        } catch (cleanupError: any) {
+          console.error(`Error during image cleanup:`, cleanupError);
+          logs.push(`⚠️  Image cleanup error: ${cleanupError.message}`);
+        }
       }
 
       // 4. Update Database

@@ -9,15 +9,16 @@ import { validateAllTokens } from "@/lib/tokenValidator";
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { githubPAT, dockerUsername, dockerToken } = await req.json();
+    const { githubPAT, githubUsername, dockerUsername, dockerToken } =
+      await req.json();
 
     // Validate input
-    if (!githubPAT || !dockerUsername || !dockerToken) {
+    if (!githubPAT || !githubUsername || !dockerUsername || !dockerToken) {
       return NextResponse.json(
         { error: "All fields are required" },
         { status: 400 }
@@ -46,10 +47,10 @@ export async function POST(req: Request) {
     const encryptedDockerToken = encrypt(dockerToken);
 
     const userId = (session.user as any).id;
-    
+
     // Verify user exists before updating
     const existingUser = await prisma.user.findUnique({
-      where: { id: userId }
+      where: { id: userId },
     });
 
     if (!existingUser) {
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
       where: { id: userId },
       data: {
         githubPAT: encryptedGithubPAT,
-        githubUsername: validationResult.githubUsername,
+        githubUsername: githubUsername || validationResult.githubUsername,
         dockerToken: encryptedDockerToken,
         dockerUsername: dockerUsername,
         isSetupComplete: true,

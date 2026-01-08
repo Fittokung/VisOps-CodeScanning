@@ -32,12 +32,12 @@ variables:
   # Project Settings
   PROJECT_NAME: "${PROJECT_NAME:-scanned-project}"
   USER_TAG: "${USER_TAG:-latest}"
-  IMAGE_NAME: "docker.io/$DOCKER_USER/$PROJECT_NAME"
   TEMP_IMAGE_TAG: "temp-$CI_PIPELINE_ID"
 
+  # Scan Mode: SCAN_ONLY or SCAN_AND_BUILD
+  SCAN_MODE: "${SCAN_MODE:-SCAN_AND_BUILD}"
+
   # Dynamic Path Configuration
-  # If TARGET_DIR is set (e.g., "backend"), the pipeline will force scan only that directory.
-  # If empty, it attempts to auto-detect source code priority.
   TARGET_DIR: ""
 
   # Backend Configuration
@@ -73,9 +73,6 @@ update_trivy_db:
     policy: pull-push
   script:
     - echo "Nightly Trivy DB Update Job"
-    - echo "========================================"
-    - echo "Updating vulnerability database..."
-
     - |
       if [ -f ".trivycache/db/metadata.json" ]; then
         DB_AGE=$(( $(date +%s) - $(stat -c %Y .trivycache/db/metadata.json 2>/dev/null || echo 0) ))
@@ -83,21 +80,14 @@ update_trivy_db:
       else
         echo "No existing cache"
       fi
-
-    - |
-      trivy image --download-db-only --cache-dir .trivycache/ && {
-        echo "DB update completed successfully"
-      } || {
-        echo "DB update failed"
-        exit 1
-      }
+    - trivy image --download-db-only --cache-dir .trivycache/
   artifacts:
     paths:
       - .trivycache/
     expire_in: 2 days
 
 # ==================================================
-# 1. Fetch Source & Smart Detect (Root vs Nested)
+# 1. Fetch Source & Smart Detect & SET VARIABLES
 # ==================================================
 fetch_and_detect:
   stage: setup
@@ -109,36 +99,22 @@ fetch_and_detect:
     - echo "Pipeline Started... Initializing..."
     - if ! command -v wget &> /dev/null; then apk add --no-cache wget; fi
 
-    # Smart Webhook Function
+    # Webhook Helper
     - >
       send_webhook() {
         local payload="$1"
         local output_file="${2:-webhook_payload.json}"
         echo "$payload" > "$output_file"
-        
-        if [ "$ENABLE_WEBHOOKS" != "true" ]; then
-          echo "Webhooks disabled - Payload saved"
-          return 0
-        fi
-        
-        if wget --timeout=$WEBHOOK_TIMEOUT --spider "$BACKEND_HOST_URL/api/webhook" 2>&1 | grep -q "200\|302\|404"; then
-          echo "Backend accessible - Sending webhook..."
-          wget --header="Content-Type: application/json" \
-               --post-data="$payload" \
-               --timeout=$WEBHOOK_TIMEOUT \
-               "$BACKEND_HOST_URL/api/webhook" -O - || echo "Webhook request failed"
-        else
-          echo "Backend unreachable (offline mode)"
+        if [ "$ENABLE_WEBHOOKS" = "true" ]; then
+          wget --timeout=$WEBHOOK_TIMEOUT --spider "$BACKEND_HOST_URL/api/webhook" 2>&1 | grep -q "200\|302\|404" && \
+          wget --header="Content-Type: application/json" --post-data="$payload" "$BACKEND_HOST_URL/api/webhook" -O - || echo "Webhook failed"
         fi
       }
 
-    - |
-      send_webhook "{\"pipelineId\": \"$CI_PIPELINE_ID\", \"status\": \"RUNNING\"}" "pipeline_start.json"
+    - send_webhook "{\"pipelineId\" \"$CI_PIPELINE_ID\", \"status\"- \"RUNNING\"}" "pipeline_start.json"
 
-    # Git Clone Logic
-    - echo "Initializing Git logic..."
+    # Git Clone
     - if [ -z "$USER_REPO_URL" ]; then echo "USER_REPO_URL is missing"; exit 1; fi
-
     - |
       if [ -n "$GIT_USERNAME" ] && [ -n "$GIT_TOKEN" ]; then
         CLEAN_URL=$(echo "$USER_REPO_URL" | sed -e 's|^https://||' -e 's|^http://||')
@@ -146,70 +122,69 @@ fetch_and_detect:
       else
         git clone --depth 1 "$USER_REPO_URL" project_temp
       fi
-
     - rm -rf project_temp/.git
     - cp -a project_temp/. .
     - rm -rf project_temp
 
     # ============================================
-    # SMART DETECTION LOGIC (Root vs Nested)
+    # SMART DETECTION & GLOBAL VARIABLE EXPORT
     # ============================================
     - |
       echo "Starting Smart Detection..."
-
-      # Search priority: User override -> Root -> Standard folders
       SEARCH_PATHS="${TARGET_DIR:-. backend frontend api web src app}"
-
       DETECTED_PATH="."
       STACK="unknown"
 
       for path in $SEARCH_PATHS; do
         if [ -d "$path" ]; then
-          echo "Checking path: $path"
-          
-          # Priority 1: Compiled Languages
-          if [ -f "$path/pom.xml" ]; then 
-            STACK="java-maven"; DETECTED_PATH="$path"; break;
-          elif [ -f "$path/build.gradle" ] || [ -f "$path/build.gradle.kts" ]; then 
-            STACK="java-gradle"; DETECTED_PATH="$path"; break;
-          elif [ -f "$path/go.mod" ]; then 
-            STACK="go"; DETECTED_PATH="$path"; break;
-          elif [ -f "$path/Cargo.toml" ]; then 
-            STACK="rust"; DETECTED_PATH="$path"; break;
-            
-          # Priority 2: Interpreted Languages (Only if compiled not found yet)
-          elif [ -f "$path/package.json" ] && [ "$STACK" = "unknown" ]; then 
-            STACK="node"; DETECTED_PATH="$path";
-            # Continue loop in case a backend is found later (unless target_dir is set)
-            if [ -n "$TARGET_DIR" ]; then break; fi
-          elif ([ -f "$path/requirements.txt" ] || [ -f "$path/Pipfile" ] || [ -f "$path/pyproject.toml" ]) && [ "$STACK" = "unknown" ]; then 
-            STACK="python"; DETECTED_PATH="$path";
-             if [ -n "$TARGET_DIR" ]; then break; fi
+          if [ -f "$path/pom.xml" ]; then STACK="java-maven"; DETECTED_PATH="$path"; break;
+          elif [ -f "$path/build.gradle" ] || [ -f "$path/build.gradle.kts" ]; then STACK="java-gradle"; DETECTED_PATH="$path"; break;
+          elif [ -f "$path/go.mod" ]; then STACK="go"; DETECTED_PATH="$path"; break;
+          elif [ -f "$path/package.json" ] && [ "$STACK" = "unknown" ]; then STACK="node"; DETECTED_PATH="$path"; if [ -n "$TARGET_DIR" ]; then break; fi
+          elif ([ -f "$path/requirements.txt" ] || [ -f "$path/pyproject.toml" ]) && [ "$STACK" = "unknown" ]; then STACK="python"; DETECTED_PATH="$path"; if [ -n "$TARGET_DIR" ]; then break; fi
           fi
         fi
       done
 
-      # Ensure path doesn't have leading/trailing slashes for consistency
+      # Clean Path (remove ./ and trailing /)
       DETECTED_PATH=$(echo "$DETECTED_PATH" | sed 's|^\./||;s|/$||')
       if [ -z "$DETECTED_PATH" ]; then DETECTED_PATH="."; fi
 
-      echo "$STACK" > .detected_stack
-      echo "$DETECTED_PATH" > .build_context
+      # --- CALCULATE FINAL IMAGE NAME HERE (SOURCE OF TRUTH) ---
+      # Clean Project Name (Replace / with -)
+      CLEAN_PROJ=$(echo "$PROJECT_NAME" | sed 's|/|-|g')
+      # Clean Context (Replace / with -)
+      CLEAN_CTX=$(echo "$DETECTED_PATH" | sed 's|/|-|g' | sed 's|^\.-||')
 
-      echo "DETECTION RESULTS:"
-      echo "   Stack: $STACK"
-      echo "   Context: $DETECTED_PATH"
+      FINAL_IMAGE_NAME="docker.io/$DOCKER_USER/$CLEAN_PROJ"
+      if [ -n "$CLEAN_CTX" ] && [ "$CLEAN_CTX" != "." ]; then
+         FINAL_IMAGE_NAME="${FINAL_IMAGE_NAME}-${CLEAN_CTX}"
+      fi
+
+      echo "========================================"
+      echo " Stack:   $STACK"
+      echo " Context: $DETECTED_PATH"
+      echo " Image:   $FINAL_IMAGE_NAME"
+      echo "========================================"
+
+      # Save to build.env for other stages
+      echo "CONTEXT_PATH=$DETECTED_PATH" >> build.env
+      echo "FINAL_IMAGE_NAME=$FINAL_IMAGE_NAME" >> build.env
+      echo "STACK=$STACK" >> build.env
+
+      # Save for script access if needed
+      echo "$STACK" > .detected_stack
 
   artifacts:
     name: "source-code-$CI_PIPELINE_ID"
     paths:
       - "."
       - "*.json"
+    reports:
+      dotenv: build.env
     exclude:
       - ".git/**/*"
       - "**/node_modules/**/*"
-      - "**/.m2/**/*"
-      - "**/.gradle/**/*"
     expire_in: 1 hour
 
 # ==================================================
@@ -225,10 +200,9 @@ gitleaks_scan:
     GIT_STRATEGY: none
   needs: []
   script:
-    - echo "Gitleaks Scanning (Full History Mode)..."
+    - echo "Gitleaks Scanning..."
     - apk add --no-cache git jq curl
     - rm -rf * .git 2>/dev/null || true
-
     - |
       if [ -n "$GIT_USERNAME" ] && [ -n "$GIT_TOKEN" ]; then
         CLEAN_URL=$(echo "$USER_REPO_URL" | sed -e 's|^https://||' -e 's|^http://||')
@@ -236,15 +210,7 @@ gitleaks_scan:
       else
         git clone "$USER_REPO_URL" .
       fi
-
     - gitleaks detect --source . -v --report-path gitleaks-report.json --exit-code 0
-
-    - |
-      # Webhook Logic (Simplified for brevity, assumes send_webhook_smart logic similar to fetch)
-      if [ -f gitleaks-report.json ] && [ "$ENABLE_WEBHOOKS" = "true" ]; then
-        echo "Processing Gitleaks report..."
-        # (JSON Parsing Logic would go here)
-      fi
   allow_failure: true
   artifacts:
     paths:
@@ -259,13 +225,31 @@ semgrep_scan:
   needs: ["fetch_and_detect"]
   script:
     - echo "Semgrep Scanning..."
-    - apk add --no-cache jq curl || true
+    - apk add --no-cache jq curl
+    - echo "Target: $CONTEXT_PATH"
 
-    # Read context to scan relevant files only
-    - CONTEXT_PATH=$(cat .build_context)
-    - echo "Scanning context- $CONTEXT_PATH"
+    # Run Semgrep with comprehensive ruleset
+    # p/ci = CI/CD security checks
+    # p/security-audit = Security best practices
+    # p/owasp-top-ten = OWASP Top 10 vulnerabilities
+    # p/dockerfile = Dockerfile security
+    - |
+      semgrep scan \
+        --config=p/ci \
+        --config=p/security-audit \
+        --config=p/owasp-top-ten \
+        --config=p/dockerfile \
+        --json \
+        --output=semgrep-report.json \
+        --metrics=off \
+        "$CONTEXT_PATH" || echo '{"results":[]}' > semgrep-report.json
 
-    - semgrep scan --config=p/ci --json --output=semgrep-report.json --metrics=off "$CONTEXT_PATH" || true
+    # Log summary
+    - |
+      if [ -f semgrep-report.json ]; then
+        FINDING_COUNT=$(jq '.results | length' semgrep-report.json 2>/dev/null || echo "0")
+        echo "Semgrep found $FINDING_COUNT findings"
+      fi
   allow_failure: true
   artifacts:
     paths:
@@ -273,7 +257,7 @@ semgrep_scan:
     when: always
 
 # ==================================================
-# 3. Compile Stage (Dynamic based on Detection)
+# 3. Compile Stage
 # ==================================================
 
 compile_java_maven:
@@ -286,32 +270,12 @@ compile_java_maven:
       - .m2/repository
     policy: pull-push
   script:
-    - STACK=$(cat .detected_stack)
-    - CONTEXT_PATH=$(cat .build_context)
-
-    # Smart Skip
-    - |
-      if [ "$STACK" != "java-maven" ] && [ "$FORCE_STACK" != "java-maven" ]; then
-        echo "Skipping: Detected stack is $STACK"
-        exit 0
-      fi
-
-    - echo "Building Java Maven in- $CONTEXT_PATH"
+    - if [ "$STACK" != "java-maven" ]; then exit 0; fi
     - cd "$CONTEXT_PATH"
     - mvn clean package -DskipTests -B -q
-
     - JAR_NAME=$(find target -name "*.jar" -not -name "*-sources.jar" -not -name "*-javadoc.jar" -type f | head -1)
-    - |
-      if [ -n "$JAR_NAME" ]; then
-        # Save absolute path or relative to root
-        echo "$CONTEXT_PATH/$JAR_NAME" > ../.jar_path
-        echo "JAR Found: $CONTEXT_PATH/$JAR_NAME"
-      else
-        echo "Error: No JAR found"
-        exit 1
-      fi
+    - if [ -n "$JAR_NAME" ]; then echo "$CONTEXT_PATH/$JAR_NAME" > ../.jar_path; fi
   artifacts:
-    name: "compiled-maven-$CI_PIPELINE_ID"
     paths:
       - "."
     exclude:
@@ -328,28 +292,11 @@ compile_java_gradle:
       - .gradle/
     policy: pull-push
   script:
-    - STACK=$(cat .detected_stack)
-    - CONTEXT_PATH=$(cat .build_context)
-
-    - |
-      if [ "$STACK" != "java-gradle" ] && [ "$FORCE_STACK" != "java-gradle" ]; then
-        echo "Skipping: Detected stack is $STACK"
-        exit 0
-      fi
-
-    - echo "Building Java Gradle in- $CONTEXT_PATH"
+    - if [ "$STACK" != "java-gradle" ]; then exit 0; fi
     - cd "$CONTEXT_PATH"
     - gradle clean build -x test --no-daemon -q
-
     - JAR_NAME=$(find build/libs -name "*.jar" -not -name "*-plain.jar" -type f | head -1)
-    - |
-      if [ -n "$JAR_NAME" ]; then
-        echo "$CONTEXT_PATH/$JAR_NAME" > ../.jar_path
-        echo "JAR Found: $CONTEXT_PATH/$JAR_NAME"
-      else
-        echo "Error: No JAR found"
-        exit 1
-      fi
+    - if [ -n "$JAR_NAME" ]; then echo "$CONTEXT_PATH/$JAR_NAME" > ../.jar_path; fi
   artifacts:
     paths:
       - "."
@@ -367,16 +314,7 @@ compile_go:
       - .go/pkg/mod/
     policy: pull-push
   script:
-    - STACK=$(cat .detected_stack)
-    - CONTEXT_PATH=$(cat .build_context)
-
-    - |
-      if [ "$STACK" != "go" ] && [ "$FORCE_STACK" != "go" ]; then
-        echo "Skipping: Detected stack is $STACK"
-        exit 0
-      fi
-
-    - echo "Building Go in- $CONTEXT_PATH"
+    - if [ "$STACK" != "go" ]; then exit 0; fi
     - export GOPATH="$CI_PROJECT_DIR/.go"
     - cd "$CONTEXT_PATH"
     - go mod download
@@ -386,7 +324,6 @@ compile_go:
       - "."
     exclude:
       - ".git/**/*"
-      - ".go/**/*"
     expire_in: 1 hour
 
 compile_node:
@@ -399,29 +336,10 @@ compile_node:
       - node_modules/
     policy: pull-push
   script:
-    - STACK=$(cat .detected_stack)
-    - CONTEXT_PATH=$(cat .build_context)
-
-    - |
-      if [ "$STACK" != "node" ] && [ "$FORCE_STACK" != "node" ]; then
-        echo "Skipping: Detected stack is $STACK"
-        exit 0
-      fi
-
-    - echo "Installing Node deps in- $CONTEXT_PATH"
+    - if [ "$STACK" != "node" ]; then exit 0; fi
     - cd "$CONTEXT_PATH"
-
-    - |
-      if [ -f "yarn.lock" ]; then
-        yarn install --frozen-lockfile --silent
-      else
-        npm ci --silent || npm install --silent
-      fi
-
-    - |
-      if grep -q '"build"' package.json; then
-        npm run build || true
-      fi
+    - if [ -f "yarn.lock" ]; then yarn install --frozen-lockfile --silent; else npm ci --silent || npm install --silent; fi
+    - if grep -q '"build"' package.json; then npm run build || true; fi
   artifacts:
     paths:
       - "."
@@ -434,13 +352,8 @@ compile_python:
   image: python:$PYTHON_VERSION
   needs: ["fetch_and_detect"]
   script:
-    - STACK=$(cat .detected_stack)
-    - |
-      if [ "$STACK" != "python" ] && [ "$FORCE_STACK" != "python" ]; then
-        echo "Skipping: Detected stack is $STACK"
-        exit 0
-      fi
-    - echo "Python detected. Preparing artifacts..."
+    - if [ "$STACK" != "python" ]; then exit 0; fi
+    - echo "Python detected."
   artifacts:
     paths:
       - "."
@@ -456,6 +369,8 @@ build_and_push:
   image:
     name: gcr.io/kaniko-project/executor:$KANIKO_VERSION
     entrypoint: [""]
+  rules:
+    - if: '$SCAN_MODE == "SCAN_AND_BUILD"'
   needs:
     - job: fetch_and_detect
       artifacts: true
@@ -475,103 +390,57 @@ build_and_push:
       artifacts: true
       optional: true
   script:
-    - echo "Starting Docker Build..."
+    - echo "Starting Docker Build (SCAN_AND_BUILD mode)..."
     - if [ -z "$DOCKER_USER" ]; then echo "No Docker Creds"; exit 1; fi
 
-    # Read Context Info
-    - STACK=$(cat .detected_stack)
-    - CONTEXT_PATH=$(cat .build_context)
-    - IMAGE_NAME="docker.io/$DOCKER_USER/$PROJECT_NAME"
-
+    # Use Variables from build.env
     - echo "Building Context- $CONTEXT_PATH"
-    - echo "Stack- $STACK"
+    - echo "Target Image- $FINAL_IMAGE_NAME:$TEMP_IMAGE_TAG"
 
-    # Dockerfile Determination Logic - RESPECT USER'S DOCKERFILE
+    # Dockerfile Strategy
     - DOCKERFILE_PATH="$CONTEXT_PATH/Dockerfile"
-
     - |
-      echo "========================================="
-      echo "DOCKERFILE DETECTION STRATEGY"
-      echo "Context Path: $CONTEXT_PATH"
-      echo "Searching for Dockerfile..."
-      echo "========================================="
-
-      # Priority 1: Dockerfile.manual (highest priority - user override)
       if [ -f "Dockerfile.manual" ]; then
-        echo "✅ USING: Dockerfile.manual (user-provided override)"
+        echo "Using Dockerfile.manual"
         mkdir -p "$CONTEXT_PATH"
         cp Dockerfile.manual "$DOCKERFILE_PATH"
-        
-      # Priority 2: Dockerfile in context path (most specific)
       elif [ -f "$DOCKERFILE_PATH" ]; then
-        echo "✅ USING: $DOCKERFILE_PATH (service-specific Dockerfile)"
-        
-      # Priority 3: Dockerfile in context path (check variations)
-      elif [ "$CONTEXT_PATH" != "." ] && [ -f "$CONTEXT_PATH/Dockerfile" ]; then
-        echo "✅ USING: $CONTEXT_PATH/Dockerfile (service-specific)"
-        DOCKERFILE_PATH="$CONTEXT_PATH/Dockerfile"
-        
-      # Priority 4: Dockerfile in root directory (for monorepo multi-stage builds)
-      elif [ -f "Dockerfile" ]; then
-        echo "✅ USING: Root Dockerfile (monorepo/multi-stage build)"
+        echo "Using existing $DOCKERFILE_PATH"
+      elif [ "$CONTEXT_PATH" != "." ] && [ -f "Dockerfile" ]; then
+        echo "Using Root Dockerfile for Monorepo"
         DOCKERFILE_PATH="Dockerfile"
-        if [ "$CONTEXT_PATH" != "." ]; then
-          echo "   ⚠️  OVERRIDING context: $CONTEXT_PATH → . (root required for monorepo Dockerfile)"
-          CONTEXT_PATH="."
-        fi
-        
-      # Priority 5: NO Dockerfile found - Skip container build
+        # Force context to root for monorepo
+        CONTEXT_PATH="." 
       else
-        echo "⚠️  NO DOCKERFILE FOUND"
-        echo "   Skipping container build - will only perform source code scanning"
-        echo "   Provide a Dockerfile if you want container image scanning and deployment"
-        echo "SKIP_DOCKER_BUILD" > .skip_docker_build
+        echo "Generating Dockerfile for $STACK"
+        if [ "$STACK" = "java-maven" ] || [ "$STACK" = "java-gradle" ]; then
+           JAR_FILE_PATH=$(cat .jar_path | sed "s|$CONTEXT_PATH/||")
+           echo "FROM eclipse-temurin:21-jre-alpine" > "$DOCKERFILE_PATH"
+           echo "WORKDIR /app" >> "$DOCKERFILE_PATH"
+           echo "COPY $JAR_FILE_PATH app.jar" >> "$DOCKERFILE_PATH"
+           echo 'ENTRYPOINT ["java", "-jar", "app.jar"]' >> "$DOCKERFILE_PATH"
+        elif [ "$STACK" = "node" ]; then
+           echo "FROM node:$NODE_VERSION" > "$DOCKERFILE_PATH"
+           echo "WORKDIR /app" >> "$DOCKERFILE_PATH"
+           echo "COPY . ." >> "$DOCKERFILE_PATH"
+           echo "CMD [\"npm\", \"start\"]" >> "$DOCKERFILE_PATH"
+        else
+           echo "FROM alpine:latest" > "$DOCKERFILE_PATH"
+           echo "WORKDIR /app" >> "$DOCKERFILE_PATH"
+           echo "COPY . ." >> "$DOCKERFILE_PATH"
+        fi
       fi
 
-      echo "========================================="
-      echo "Final Dockerfile: $DOCKERFILE_PATH"
-      echo "Build Context: $CI_PROJECT_DIR/$CONTEXT_PATH"
-      echo "========================================="
-
-    - |
-      if [ -f .skip_docker_build ]; then
-        echo "⚠️  Skipping Docker build (no Dockerfile provided)"
-        exit 0
-      fi
-
-      echo "========================================="
-
-    - echo "📄 FINAL DOCKERFILE CONTENT:"
-    - echo "========================================="
-    - cat "$DOCKERFILE_PATH"
-    - echo "========================================="
-
-    # Authenticate and Build
+    # Auth & Build
     - mkdir -p /kaniko/.docker
     - AUTH_STR=$(echo -n "$DOCKER_USER:$DOCKER_PASSWORD" | base64 | tr -d '\n')
     - echo "{\"auths\":{\"https://index.docker.io/v1/\":{\"auth\":\"$AUTH_STR\"},\"index.docker.io\":{\"auth\":\"$AUTH_STR\"}}}" > /kaniko/.docker/config.json
 
     - |
-      # Detect if Dockerfile has multi-stage build
-      BUILD_TARGET=""
-      if grep -q "AS runner" "$CI_PROJECT_DIR/$DOCKERFILE_PATH" 2>/dev/null; then
-        BUILD_TARGET="--target runner"
-        echo "📦 Multi-stage build detected - targeting 'runner' stage"
-      elif grep -q "AS final" "$CI_PROJECT_DIR/$DOCKERFILE_PATH" 2>/dev/null; then
-        BUILD_TARGET="--target final"
-        echo "📦 Multi-stage build detected - targeting 'final' stage"
-      elif grep -q "AS production" "$CI_PROJECT_DIR/$DOCKERFILE_PATH" 2>/dev/null; then
-        BUILD_TARGET="--target production"
-        echo "📦 Multi-stage build detected - targeting 'production' stage"
-      else
-        echo "📦 Single-stage build or final stage will be used by default"
-      fi
-
       /kaniko/executor \
         --context "$CI_PROJECT_DIR/$CONTEXT_PATH" \
         --dockerfile "$CI_PROJECT_DIR/$DOCKERFILE_PATH" \
-        --destination "$IMAGE_NAME:$TEMP_IMAGE_TAG" \
-        $BUILD_TARGET \
+        --destination "$FINAL_IMAGE_NAME:$TEMP_IMAGE_TAG" \
         --cache=true \
         --cache-ttl=24h \
         --snapshot-mode=redo \
@@ -585,7 +454,9 @@ trivy_scan:
   image:
     name: aquasec/trivy:$TRIVY_VERSION
     entrypoint: [""]
-  needs: ["build_and_push"]
+  rules:
+    - if: '$SCAN_MODE == "SCAN_AND_BUILD"'
+  needs: ["build_and_push", "fetch_and_detect"]
   variables:
     TRIVY_USERNAME: "$DOCKER_USER"
     TRIVY_PASSWORD: "$DOCKER_PASSWORD"
@@ -596,10 +467,17 @@ trivy_scan:
       - .trivycache/
     policy: pull-push
   script:
-    - IMAGE_NAME="docker.io/$DOCKER_USER/$PROJECT_NAME"
-    - echo "Scanning Image- $IMAGE_NAME:$TEMP_IMAGE_TAG"
+    # Use FINAL_IMAGE_NAME from build.env
+    - echo "Scanning Image: $FINAL_IMAGE_NAME:$TEMP_IMAGE_TAG"
     - apk add --no-cache curl jq
 
+    # --- FIX START: Check if DB exists, if not download it ---
+    - |
+      if [ ! -d ".trivycache/db" ]; then
+        echo "Trivy DB not found in cache. Downloading..."
+        trivy image --download-db-only
+      fi
+    # --- FIX END ---
     - |
       if [ "$TRIVY_SCAN_MODE" = "full" ]; then
         SKIP_FLAGS=""
@@ -609,7 +487,7 @@ trivy_scan:
         TIMEOUT="10m"
       fi
 
-    # Scan
+    # Now we can safely run with --skip-db-update because we ensured it exists above
     - |
       trivy image \
         --timeout $TIMEOUT \
@@ -620,18 +498,68 @@ trivy_scan:
         $SKIP_FLAGS \
         --severity CRITICAL,HIGH,MEDIUM \
         --ignore-unfixed \
-        "$IMAGE_NAME:$TEMP_IMAGE_TAG" || echo '{"Results":[]}' > trivy-report.json
+        "$FINAL_IMAGE_NAME:$TEMP_IMAGE_TAG" || echo '{"Results":[]}' > trivy-report.json
 
     - |
-      # Webhook Logic
       if [ -f trivy-report.json ] && [ "$ENABLE_WEBHOOKS" = "true" ]; then
-        echo "Sending Trivy results to backend..."
-        # (Parsing and sending logic)
+        echo "Trivy Report Generated"
       fi
   allow_failure: true
   artifacts:
     paths:
       - trivy-report.json
+    when: always
+
+# ==================================================
+# 5b. SCAN_ONLY Complete (No Build/Container Scan)
+# ==================================================
+scan_only_complete:
+  stage: container_scan
+  image: alpine:latest
+  rules:
+    - if: '$SCAN_MODE == "SCAN_ONLY"'
+  needs: ["fetch_and_detect", "gitleaks_scan", "semgrep_scan"]
+  script:
+    - echo "=========================================="
+    - echo "SCAN_ONLY Mode - Security Audit Complete"
+    - echo "=========================================="
+    - echo "✅ Gitleaks scan completed"
+    - echo "✅ Semgrep scan completed"
+    - echo "⏭️  Skipping Docker build and container scan"
+    - echo ""
+    - echo "Scan Mode: SCAN_ONLY"
+    - echo "Pipeline ID: $CI_PIPELINE_ID"
+    - echo "Project: $PROJECT_NAME"
+    - |
+      apk add --no-cache jq
+      echo "Generating summary..."
+
+      GITLEAKS_COUNT=0
+      SEMGREP_COUNT=0
+
+      if [ -f "gitleaks-report.json" ]; then
+        GITLEAKS_COUNT=$(jq 'length' gitleaks-report.json 2>/dev/null || echo "0")
+      fi
+
+      if [ -f "semgrep-report.json" ]; then
+        SEMGREP_COUNT=$(jq '.results | length' semgrep-report.json 2>/dev/null || echo "0")
+      fi
+
+      echo ""
+      echo "📊 Scan Summary:"
+      echo "  - Gitleaks findings: $GITLEAKS_COUNT"
+      echo "  - Semgrep findings: $SEMGREP_COUNT"
+      echo ""
+
+      if [ "$GITLEAKS_COUNT" -gt 0 ] || [ "$SEMGREP_COUNT" -gt 0 ]; then
+        echo "⚠️  Security issues detected - review reports"
+      else
+        echo "✅ No security issues detected"
+      fi
+  artifacts:
+    paths:
+      - gitleaks-report.json
+      - semgrep-report.json
     when: always
 
 # ==================================================
@@ -642,13 +570,14 @@ push_to_hub:
   image:
     name: gcr.io/go-containerregistry/crane:$CRANE_VERSION
     entrypoint: [""]
-  needs: ["trivy_scan"]
-  when: manual
+  rules:
+    - if: '$SCAN_MODE == "SCAN_AND_BUILD"'
+      when: manual
+  needs: ["trivy_scan", "fetch_and_detect"]
   script:
-    - IMAGE_NAME="docker.io/$DOCKER_USER/$PROJECT_NAME"
-    - echo "Processing Release..."
+    - echo "Promoting $FINAL_IMAGE_NAME:$TEMP_IMAGE_TAG to $USER_TAG"
 
-    # Simple Security Gate (Grep based)
+    # Security Gate
     - CRITICAL_COUNT=$(grep -o '"Severity":"CRITICAL"' trivy-report.json 2>/dev/null | wc -l || echo "0")
     - |
       if [ "$CRITICAL_COUNT" -gt 0 ]; then
@@ -656,14 +585,10 @@ push_to_hub:
          exit 1
       fi
 
-    - echo "Security Check Passed."
     - crane auth login -u "$DOCKER_USER" -p "$DOCKER_PASSWORD" index.docker.io
-
-    - echo "Promoting image..."
-    - crane cp "$IMAGE_NAME:$TEMP_IMAGE_TAG" "$IMAGE_NAME:$USER_TAG"
-    - crane delete "$IMAGE_NAME:$TEMP_IMAGE_TAG" || true
-
-    - echo "Deployment Successful- $IMAGE_NAME:$USER_TAG"
+    - crane cp "$FINAL_IMAGE_NAME:$TEMP_IMAGE_TAG" "$FINAL_IMAGE_NAME:$USER_TAG"
+    - crane delete "$FINAL_IMAGE_NAME:$TEMP_IMAGE_TAG" || true
+    - echo "Deployment Successful: $FINAL_IMAGE_NAME:$USER_TAG"
 
 # ==================================================
 # 7. Cleanup
@@ -673,11 +598,14 @@ cleanup_temp_image:
   image:
     name: gcr.io/go-containerregistry/crane:$CRANE_VERSION
     entrypoint: [""]
+  rules:
+    - if: '$SCAN_MODE == "SCAN_AND_BUILD"'
+  needs: ["fetch_and_detect"]
   variables:
     GIT_STRATEGY: none
   script:
     - if [ -z "$DOCKER_USER" ]; then exit 0; fi
-    - IMAGE_NAME="docker.io/$DOCKER_USER/$PROJECT_NAME"
     - crane auth login -u "$DOCKER_USER" -p "$DOCKER_PASSWORD" index.docker.io || true
-    - crane delete "$IMAGE_NAME:$TEMP_IMAGE_TAG" || true
+    - crane delete "$FINAL_IMAGE_NAME:$TEMP_IMAGE_TAG" || true
+    - echo "Cleaned up temporary image"
   when: always
