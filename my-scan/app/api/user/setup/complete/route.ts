@@ -61,6 +61,7 @@ export async function POST(req: Request) {
     }
 
     // Update user with encrypted tokens and mark setup as complete
+    // Save to both old fields (for backward compatibility) and settings fields
     await prisma.user.update({
       where: { id: userId },
       data: {
@@ -68,6 +69,11 @@ export async function POST(req: Request) {
         githubUsername: githubUsername || validationResult.githubUsername,
         dockerToken: encryptedDockerToken,
         dockerUsername: dockerUsername,
+        // Also save to settings fields so they appear in /settings page
+        defaultGitUser: githubUsername || validationResult.githubUsername,
+        defaultGitToken: encryptedGithubPAT,
+        defaultDockerUser: dockerUsername,
+        defaultDockerToken: encryptedDockerToken,
         isSetupComplete: true,
       },
     });

@@ -7,25 +7,20 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
-//NextAuth Models (สำหรับระบบ Login)
-
-
 model Account {
   id                String  @id @default(cuid())
   userId            String
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -39,44 +34,30 @@ model Session {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?   // เผื่อใช้ Login แบบปกติ
-
-  // Onboarding & Setup
-  isSetupComplete Boolean  @default(false)
-  role            String   @default("user") // "user" | "admin"
-
-  // GitHub Personal Access Token (Encrypted AES-256)
-  githubPAT       String?  @db.Text
-  githubUsername  String?
-  
-  // Docker Hub Token (Encrypted AES-256)
-  dockerToken     String?  @db.Text
-  dockerUsername  String?
-  
-  // Docker Hub Organization Support
-  isDockerOrganization Boolean @default(false)
+  id                   String          @id @default(cuid())
+  name                 String?
+  email                String?         @unique
+  emailVerified        DateTime?
+  image                String?
+  password             String?
+  isSetupComplete      Boolean         @default(false)
+  role                 String          @default("user")
+  githubPAT            String?
+  githubUsername       String?
+  dockerToken          String?
+  dockerUsername       String?
+  defaultGitUser       String?
+  defaultGitToken      String?
+  defaultDockerUser    String?
+  defaultDockerToken   String?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
   dockerOrgName        String?
-  
-  // Legacy fields (keep for backward compatibility)
-  defaultGitUser     String?
-  defaultGitToken    String?  // เก็บแบบ Encrypted
-  defaultDockerUser  String?
-  defaultDockerToken String?  // เก็บแบบ Encrypted
-  
-  accounts      Account[]
-  sessions      Session[]
-  
-  // Relation กับโปรเจกต์ของเรา
-  groups        ProjectGroup[] 
-  supportTickets SupportTicket[]
-  
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  isDockerOrganization Boolean         @default(false)
+  accounts             Account[]
+  groups               ProjectGroup[]
+  sessions             Session[]
+  supportTickets       SupportTicket[]
 }
 
 model VerificationToken {
@@ -87,147 +68,97 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-
-//Admin Configuration
-
-
 model DockerTemplate {
   id        String   @id @default(uuid())
-  stack     String   @unique 
-  content   String   
+  stack     String   @unique
+  content   String
   updatedAt DateTime @updatedAt
 }
 
-//Project Structure
-
 model ProjectGroup {
-  id        String   @id @default(uuid())
-  groupName String   
-  repoUrl   String   
-
-  isPrivate Boolean  @default(false)
+  id        String           @id @default(uuid())
+  groupName String
+  repoUrl   String
+  isPrivate Boolean          @default(false)
   gitUser   String?
-  gitToken  String?  
-
-  // Quota Management
-  isActive  Boolean  @default(true) // false if deleted/archived
-
+  gitToken  String?
+  isActive  Boolean          @default(true)
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   services  ProjectService[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
   @@index([userId, isActive])
 }
 
 model ProjectService {
-  id          String   @id @default(uuid())
-  serviceName String   
-  contextPath String   
-  
-  imageName   String   
-  dockerUser  String?
-  dockerToken String?  
-
-  // Dockerfile Override (Admin/System can inject custom Dockerfile)
-  useCustomDockerfile  Boolean @default(false)
-  dockerfileContent    String? @db.Text
-  dockerfileOverrideBy String? // admin user ID who overrode
-  
-  // Language detection for auto-generation
-  detectedLanguage     String? // "node" | "python" | "go" | "java"
-
-  groupId     String
-  group       ProjectGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-
-  scans       ScanHistory[]
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  lastScanAt  DateTime?
+  id                   String        @id @default(uuid())
+  serviceName          String
+  contextPath          String
+  imageName            String
+  dockerUser           String?
+  dockerToken          String?
+  useCustomDockerfile  Boolean       @default(false)
+  dockerfileContent    String?
+  dockerfileOverrideBy String?
+  detectedLanguage     String?
+  groupId              String
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  lastScanAt           DateTime?
+  group                ProjectGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  scans                ScanHistory[]
 }
 
-
-//Scan Results
-
-
 model ScanHistory {
-  id           String   @id @default(uuid())
+  id                     String         @id @default(uuid())
+  imageTag               String
+  status                 String         @default("QUEUED")
+  scanId                 String
+  pipelineId             String?        @unique
+  vulnCritical           Int            @default(0)
+  details                Json?
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+  acknowledgedAt         DateTime?
+  acknowledgedBy         String?
+  buildLogs              String?
+  completedAt            DateTime?
+  errorMessage           String?
+  imagePushed            Boolean        @default(false)
+  isCriticalAcknowledged Boolean        @default(false)
+  isLatest               Boolean        @default(true)
+  jobId                  String?        @unique
+  previousScanId         String?
+  queuedAt               DateTime       @default(now())
+  reportJson             Json?
+  scanMode               String         @default("SCAN_AND_BUILD")
+  serviceId              String
+  startedAt              DateTime?
+  vulnHigh               Int            @default(0)
+  vulnLow                Int            @default(0)
+  vulnMedium             Int            @default(0)
+  service                ProjectService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
-  serviceId    String
-  service      ProjectService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-
-  // Job Queue & Status Management
-  status       String   @default("QUEUED") // "QUEUED" | "PROCESSING" | "PASSED" | "FAILED_SECURITY" | "FAILED_BUILD" | "CANCELLED"
-  scanMode     String   @default("SCAN_AND_BUILD") // "SCAN_ONLY" | "SCAN_AND_BUILD"
-  
-  scanId       String   
-  pipelineId   String?  @unique // ควรใส่ @unique เพื่อให้ค้นหาได้ไว
-  jobId        String?  @unique // Redis Queue Job ID
-  
-  // Vulnerability Counts
-  vulnCritical Int      @default(0)
-  vulnHigh     Int      @default(0)
-  vulnMedium   Int      @default(0)
-  vulnLow      Int      @default(0)
-  
-  imageTag     String   
-  imagePushed  Boolean  @default(false) // true if pushed to Docker Hub
-  
-  // Structured Report (SARIF/JSON format)
-  reportJson   Json?    @db.JsonB
-  
-  // Build Logs
-  buildLogs    String?  @db.Text
-  errorMessage String?  @db.Text
-  
-  // History Tracking (Latest vs Previous)
-  isLatest     Boolean  @default(true)
-  previousScanId String? // Reference to previous scan for comparison
-  
-  // Critical Resolution
-  isCriticalAcknowledged Boolean @default(false)
-  acknowledgedAt        DateTime?
-  acknowledgedBy        String?
-  
-  // Timestamps
-  queuedAt     DateTime @default(now())
-  startedAt    DateTime?
-  completedAt  DateTime?
-  
-  details      Json?    // Legacy field
-  
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  
   @@index([serviceId, isLatest])
   @@index([status, queuedAt])
 }
 
-// Support Ticket System
-
 model SupportTicket {
-  id          String   @id @default(uuid())
-  
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  subject     String
-  message     String   @db.Text
-  status      String   @default("OPEN") // "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED"
-  priority    String   @default("NORMAL") // "LOW" | "NORMAL" | "HIGH" | "URGENT"
-  
-  // Admin Response
-  adminReply  String?  @db.Text
-  adminId     String?
-  resolvedAt  DateTime?
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  id         String    @id @default(uuid())
+  userId     String
+  subject    String
+  message    String
+  status     String    @default("OPEN")
+  priority   String    @default("NORMAL")
+  adminReply String?
+  adminId    String?
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId, status])
   @@index([status, priority])
 }
