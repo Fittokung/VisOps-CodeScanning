@@ -5,7 +5,13 @@ import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown, History, FileCode, ShieldCheck } from "lucide-react";
+import {
+  ChevronDown,
+  History,
+  FileCode,
+  ShieldCheck,
+  User,
+} from "lucide-react";
 
 export default function Navbar() {
   const { data: session, status } = useSession();
@@ -15,7 +21,10 @@ export default function Navbar() {
   // ปิด Dropdown เมื่อคลิกข้างนอก
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setIsAdminOpen(false);
       }
     }
@@ -55,7 +64,9 @@ export default function Navbar() {
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center text-white font-bold text-sm shadow-sm">
               VS
             </div>
-            <span className="text-lg font-semibold text-gray-900 tracking-tight">VisScan</span>
+            <span className="text-lg font-semibold text-gray-900 tracking-tight">
+              VisScan
+            </span>
           </Link>
 
           {/* Navigation Links */}
@@ -95,7 +106,12 @@ export default function Navbar() {
                   >
                     <ShieldCheck size={16} className="text-blue-500" />
                     Admin
-                    <ChevronDown size={14} className={`transition-transform duration-200 ${isAdminOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown
+                      size={14}
+                      className={`transition-transform duration-200 ${
+                        isAdminOpen ? "rotate-180" : ""
+                      }`}
+                    />
                   </button>
 
                   {isAdminOpen && (
@@ -115,6 +131,14 @@ export default function Navbar() {
                       >
                         <FileCode size={16} />
                         Docker Template
+                      </Link>
+                      <Link
+                        href="/admin/users"
+                        onClick={() => setIsAdminOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                      >
+                        <User size={16} />
+                        User Management
                       </Link>
                     </div>
                   )}
@@ -155,7 +179,9 @@ export default function Navbar() {
           {/* Setup incomplete nav */}
           {!isSetupComplete && (
             <div className="flex items-center gap-4">
-              <div className="text-sm text-gray-500 italic">{session.user?.email}</div>
+              <div className="text-sm text-gray-500 italic">
+                {session.user?.email}
+              </div>
               <button
                 onClick={() => signOut({ callbackUrl: "/" })}
                 className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-all"

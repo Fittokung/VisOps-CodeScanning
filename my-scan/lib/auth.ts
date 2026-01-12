@@ -27,6 +27,7 @@ export const authOptions: NextAuthOptions = {
             id: true,
             isSetupComplete: true,
             role: true,
+            status: true,
             email: true,
             name: true,
             image: true,
@@ -37,6 +38,7 @@ export const authOptions: NextAuthOptions = {
           token.id = dbUser.id;
           token.isSetupComplete = dbUser.isSetupComplete;
           token.role = dbUser.role;
+          token.status = dbUser.status;
         }
       }
       return token;
@@ -47,6 +49,7 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).id = token.id;
         (session.user as any).isSetupComplete = token.isSetupComplete;
         (session.user as any).role = token.role;
+        (session.user as any).status = token.status;
       }
       return session;
     },

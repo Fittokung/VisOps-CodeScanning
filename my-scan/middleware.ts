@@ -1,94 +1,47 @@
-// middleware.ts
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
 
 export default withAuth(
-  async function middleware(req) {
-    const token = await getToken({ req });
-    const path = req.nextUrl.pathname;
+  function middleware(req) {
+    const token = req.nextauth.token;
+    const isPending =
+      token?.status === "PENDING" || token?.status === "REJECTED";
+    const isApprovePage = req.nextUrl.pathname.startsWith("/pending");
+    const isAdminPage = req.nextUrl.pathname.startsWith("/admin");
 
-    const isSetupPage = path.startsWith("/setup");
-    const isLoginPage = path.startsWith("/login");
-    const isDashboard = path.startsWith("/dashboard");
-    const isApiRoute = path.startsWith("/api");
-    const isHomePage = path === "/";
-
-    // Allow API routes to pass through (they handle auth internally)
-    if (isApiRoute) {
-      return NextResponse.next();
+    // 1. ถ้าสถานะไม่ผ่าน (Pending/Rejected) และพยายามเข้าหน้าอื่นที่ไม่ใช่ /pending
+    if (isPending && !isApprovePage) {
+      return NextResponse.redirect(new URL("/pending", req.url));
     }
 
-    // If user is not logged in
-    if (!token) {
-      // Allow access to login page and home page only
-      if (isLoginPage || isHomePage) {
-        return NextResponse.next();
-      }
-      // Redirect to login for ALL protected pages (including /setup)
-      return NextResponse.redirect(new URL("/login", req.url));
+    // 2. ถ้าสถานะผ่านแล้ว แต่ยังพยายามเข้าหน้า /pending ให้ส่งไป Dashboard
+    if (!isPending && isApprovePage) {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
     }
 
-    // If user is logged in
-    if (token) {
-      const isSetupComplete = (token as any).isSetupComplete;
-
-      // If on login page and already logged in, redirect appropriately
-      if (isLoginPage) {
-        if (!isSetupComplete) {
-          return NextResponse.redirect(new URL("/setup", req.url));
-        }
-        return NextResponse.redirect(new URL("/dashboard", req.url));
-      }
-
-      // If setup not complete, redirect to setup (except if already on setup page)
-      if (!isSetupComplete && !isSetupPage) {
-        return NextResponse.redirect(new URL("/setup", req.url));
-      }
-
-      // If setup is complete and trying to access setup page, redirect to dashboard
-      if (isSetupComplete && isSetupPage) {
-        return NextResponse.redirect(new URL("/dashboard", req.url));
-      }
-
-      // If setup complete and on home page, redirect to dashboard
-      if (isSetupComplete && isHomePage) {
-        return NextResponse.redirect(new URL("/dashboard", req.url));
-      }
+    // 3. ป้องกัน User ทั่วไปเข้าหน้า Admin
+    if (isAdminPage && token?.role !== "admin") {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
     }
 
     return NextResponse.next();
   },
   {
     callbacks: {
-      authorized: ({ token, req }) => {
-        const path = req.nextUrl.pathname;
-
-        // Allow public routes
-        if (
-          path === "/" ||
-          path.startsWith("/login") ||
-          path.startsWith("/api")
-        ) {
-          return true;
-        }
-
-        // All other routes require authentication
-        return !!token;
-      },
+      // ตรวจสอบว่ามี Token ไหม (ถ้าไม่มีจะเด้งไปหน้า Login อัตโนมัติ)
+      authorized: ({ token }) => !!token,
     },
   }
 );
 
+// กำหนด Path ที่ต้องการให้ Middleware ทำงาน (ครอบคลุมทุกหน้าที่ต้อง Login)
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
-    "/((?!_next/static|_next/image|favicon.ico|public/).*)",
+    "/dashboard/:path*",
+    "/admin/:path*",
+    "/setup/:path*",
+    "/scan/:path*",
+    "/settings/:path*",
+    "/pending",
   ],
 };

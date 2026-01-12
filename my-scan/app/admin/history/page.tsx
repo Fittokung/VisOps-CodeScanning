@@ -1,3 +1,5 @@
+// my-scan/app/admin/history/page.tsx
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -38,22 +40,30 @@ export default function AdminHistoryPage() {
       const res = await fetch("/api/scan/history");
       if (res.ok) {
         const data = await res.json();
-        // เรียงลำดับจากใหม่ไปเก่า
-        setHistory(
-          data.sort(
-            (a: ScanItem, b: ScanItem) =>
-              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          )
-        );
+        
+        // ✅ MERGED FIX: ตรวจสอบว่าเป็น Array ก่อน (จาก Fit-Origin) และใส่ Type ให้ชัดเจน (จาก tent-backup)
+        if (Array.isArray(data)) {
+          setHistory(
+            data.sort(
+              (a: ScanItem, b: ScanItem) =>
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            )
+          );
+        } else {
+          console.warn("API did not return an array:", data);
+          setHistory([]);
+        }
+      } else {
+        console.error("Server responded with error:", res.status);
       }
     } catch (error) {
-      console.error("Failed to load history");
+      console.error("Failed to load history:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ แก้ไข: รับ pipelineId แทน scanId
+  //  แก้ไข: รับ pipelineId แทน scanId
   const handleDelete = async (pipelineId: string) => {
     if (!confirm(`Confirm DELETE Pipeline ID: ${pipelineId}?`)) return;
     setDeletingId(pipelineId);
@@ -107,8 +117,7 @@ export default function AdminHistoryPage() {
             <thead className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500">
               <tr>
                 <th className="p-4 font-semibold">User</th>
-                <th className="p-4 font-semibold">Pipeline ID</th>{" "}
-                {/* เปลี่ยนหัวตาราง */}
+                <th className="p-4 font-semibold">Pipeline ID</th>
                 <th className="p-4 font-semibold">Status</th>
                 <th className="p-4 font-semibold">Repo / Tag</th>
                 <th className="p-4 font-semibold">Vulns</th>
@@ -118,7 +127,7 @@ export default function AdminHistoryPage() {
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
               {history.map((item) => (
-                // ✅ ใช้ pipelineId เป็น key เพราะมันไม่ซ้ำกันแน่นอน
+                //  ใช้ pipelineId เป็น key เพราะมันไม่ซ้ำกันแน่นอน
                 <tr
                   key={item.pipelineId}
                   className="hover:bg-slate-50 transition-colors"
