@@ -15,6 +15,7 @@ export default function SetupWizard() {
 
   const [formData, setFormData] = useState({
     githubPAT: "",
+    githubUsername: "",
     dockerUsername: "",
     dockerToken: "",
   });
@@ -60,6 +61,12 @@ export default function SetupWizard() {
           },
           docker: { valid: true, message: "✓ Authentication successful" },
         });
+        // Auto-fill usernames from validation result
+        setFormData((prev) => ({
+          ...prev,
+          githubUsername: result.githubUsername || prev.githubUsername,
+          dockerUsername: result.dockerUsername || prev.dockerUsername,
+        }));
         setStep(2);
       } else {
         setValidation({
@@ -208,6 +215,24 @@ export default function SetupWizard() {
               <p className="mt-1 text-xs text-gray-500">
                 Required scopes:{" "}
                 <code className="bg-gray-100 px-1 rounded">repo</code>
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                GitHub Username
+              </label>
+              <input
+                type="text"
+                value={formData.githubUsername}
+                onChange={(e) =>
+                  setFormData({ ...formData, githubUsername: e.target.value })
+                }
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="your-github-username"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Your GitHub account username
               </p>
             </div>
 

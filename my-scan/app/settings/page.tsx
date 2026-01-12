@@ -1,4 +1,5 @@
 "use client";
+
 import { useState, useEffect } from "react";
 import { Save, Loader2, CheckCircle, Lock } from "lucide-react";
 import { useSession } from "next-auth/react";
@@ -17,10 +18,12 @@ export default function SettingsPage() {
   const [dockerUser, setDockerUser] = useState("");
   const [dockerToken, setDockerToken] = useState("");
   const [hasDockerToken, setHasDockerToken] = useState(false);
+  const [isDockerOrg, setIsDockerOrg] = useState(false);
+  const [dockerOrgName, setDockerOrgName] = useState("");
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/login");
+      router.replace("/login"); // Use replace for auth redirects
       return;
     }
 
@@ -32,6 +35,8 @@ export default function SettingsPage() {
           setHasGitToken(data.hasGitToken);
           setDockerUser(data.dockerUser);
           setHasDockerToken(data.hasDockerToken);
+          setIsDockerOrg(data.isDockerOrganization || false);
+          setDockerOrgName(data.dockerOrgName || "");
           setLoading(false);
         });
     }
@@ -50,7 +55,14 @@ export default function SettingsPage() {
       await fetch("/api/user/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gitUser, gitToken, dockerUser, dockerToken }),
+        body: JSON.stringify({
+          gitUser,
+          gitToken,
+          dockerUser,
+          dockerToken,
+          isDockerOrganization: isDockerOrg,
+          dockerOrgName: isDockerOrg ? dockerOrgName : null,
+        }),
       });
       showToast("Settings saved successfully");
       setTimeout(() => window.location.reload(), 1500);
@@ -130,18 +142,62 @@ export default function SettingsPage() {
                 Docker Hub Token
               </label>
               <div className="space-y-3">
+                {/* Organization Checkbox */}
+                <div className="flex items-center gap-2 mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <input
+                    type="checkbox"
+                    id="isDockerOrg"
+                    checked={isDockerOrg}
+                    onChange={(e) => setIsDockerOrg(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                  />
+                  <label
+                    htmlFor="isDockerOrg"
+                    className="text-sm text-gray-700 cursor-pointer"
+                  >
+                    This is an <strong>Organization</strong> account
+                  </label>
+                </div>
+
+                {isDockerOrg && (
+                  <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg mb-3">
+                    <p className="text-xs text-amber-800">
+                      <strong>Note:</strong> When using an Organization account,
+                      enter the <strong>Organization Name</strong> below and
+                      ensure your token has proper permissions for that
+                      organization.
+                    </p>
+                  </div>
+                )}
+
                 <input
                   className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                  placeholder="Username"
+                  placeholder={
+                    isDockerOrg ? "Your Personal Username" : "Username"
+                  }
                   value={dockerUser}
                   onChange={(e) => setDockerUser(e.target.value)}
                 />
+
+                {isDockerOrg && (
+                  <input
+                    className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition bg-blue-50"
+                    placeholder="Organization Name (e.g., 261361-VetNurse)"
+                    value={dockerOrgName}
+                    onChange={(e) => setDockerOrgName(e.target.value)}
+                  />
+                )}
+
                 <div className="relative">
                   <input
                     type="password"
                     className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                     placeholder={
-                      hasDockerToken ? "Token saved" : "Access Token"
+                      hasDockerToken
+                        ? "Token saved"
+                        : isDockerOrg
+                        ? "Organization Access Token"
+                        : "Access Token"
                     }
                     value={dockerToken}
                     onChange={(e) => setDockerToken(e.target.value)}

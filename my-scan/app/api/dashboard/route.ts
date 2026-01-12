@@ -11,7 +11,7 @@ import { prisma } from "@/lib/prisma";
 export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -32,6 +32,7 @@ export async function GET(req: Request) {
               orderBy: { startedAt: "desc" },
               select: {
                 id: true,
+                pipelineId: true,
                 status: true,
                 scanMode: true,
                 imageTag: true,
@@ -79,7 +80,6 @@ export async function GET(req: Request) {
         max: 6,
       },
     });
-
   } catch (error: any) {
     console.error("[Dashboard API Error]:", error);
     return NextResponse.json(

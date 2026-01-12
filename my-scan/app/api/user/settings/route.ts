@@ -7,7 +7,7 @@ import { encrypt } from "@/lib/crypto";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  
+
   if (!session?.user?.email) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -16,44 +16,77 @@ export async function GET() {
     where: { email: session.user.email },
     select: {
       defaultGitUser: true,
-      defaultGitToken: true, // เช็คว่ามีค่าไหม
+      defaultGitToken: true,
       defaultDockerUser: true,
       defaultDockerToken: true,
-    }
+      isDockerOrganization: true,
+      dockerOrgName: true,
+    },
   });
 
   return NextResponse.json({
     gitUser: user?.defaultGitUser || "",
     dockerUser: user?.defaultDockerUser || "",
-    // ส่งแค่ flag ว่ามี token ไหม (ไม่ส่ง text จริงเพื่อความปลอดภัย)
+    // Only send flags for security - don't expose actual tokens
     hasGitToken: !!user?.defaultGitToken,
     hasDockerToken: !!user?.defaultDockerToken,
+    isDockerOrganization: user?.isDockerOrganization || false,
+    dockerOrgName: user?.dockerOrgName || "",
   });
 }
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
-  
+
   if (!session?.user?.email) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const body = await req.json();
-    const { gitUser, gitToken, dockerUser, dockerToken } = body;
+    const {
+      gitUser,
+      gitToken,
+      dockerUser,
+      dockerToken,
+      isDockerOrganization,
+      dockerOrgName,
+    } = body;
 
-    const updateData: any = {};
+    // Build update data - implements UPSERT logic
+    // Always update username fields if provided (even empty string to clear)
+    // Only update token fields if a new value is provided (not empty)
+    const updateData: Record<string, string | boolean | null> = {};
 
-    // Update เฉพาะค่าที่ส่งมา
-    if (gitUser !== undefined) updateData.defaultGitUser = gitUser;
-    if (gitToken) updateData.defaultGitToken = encrypt(gitToken); // Encrypt ก่อนเก็บ
+    // Git credentials - upsert logic
+    if (gitUser !== undefined) {
+      updateData.defaultGitUser = gitUser;
+    }
+    if (gitToken && gitToken.trim() !== "") {
+      // Only update token if new value provided - this overwrites any existing token
+      updateData.defaultGitToken = encrypt(gitToken.trim());
+    }
 
-    if (dockerUser !== undefined) updateData.defaultDockerUser = dockerUser;
-    if (dockerToken) updateData.defaultDockerToken = encrypt(dockerToken); // Encrypt ก่อนเก็บ
+    // Docker credentials - upsert logic
+    if (dockerUser !== undefined) {
+      updateData.defaultDockerUser = dockerUser;
+    }
+    if (dockerToken && dockerToken.trim() !== "") {
+      // Only update token if new value provided - this overwrites any existing token
+      updateData.defaultDockerToken = encrypt(dockerToken.trim());
+    }
 
-    // Verify user exists before updating
+    // Docker Organization settings
+    if (isDockerOrganization !== undefined) {
+      updateData.isDockerOrganization = isDockerOrganization;
+    }
+    if (dockerOrgName !== undefined) {
+      updateData.dockerOrgName = dockerOrgName || null;
+    }
+
+    // Verify user exists
     const existingUser = await prisma.user.findUnique({
-      where: { email: session.user.email }
+      where: { email: session.user.email },
     });
 
     if (!existingUser) {
@@ -63,13 +96,26 @@ export async function POST(req: Request) {
       );
     }
 
+    // Perform upsert - update existing or insert new values
     await prisma.user.update({
       where: { email: session.user.email },
-      data: updateData
+      data: updateData,
     });
 
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    return NextResponse.json({ error: "Failed to update settings" }, { status: 500 });
+    console.log(
+      `[Settings Updated] User ${session.user.email} updated credentials`
+    );
+
+    return NextResponse.json({
+      success: true,
+      message: "Settings saved successfully",
+      updated: Object.keys(updateData),
+    });
+  } catch (error: any) {
+    console.error("[Settings Update Error]:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to update settings" },
+      { status: 500 }
+    );
   }
 }

@@ -12,7 +12,7 @@ import { prisma } from "@/lib/prisma";
 export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -25,13 +25,17 @@ export async function GET(req: Request) {
         service: {
           group: {
             userId: userId,
-          }
+          },
         },
         status: {
-          in: ['QUEUED', 'RUNNING']
-        }
+          in: ["QUEUED", "RUNNING"],
+        },
       },
-      include: {
+      select: {
+        id: true,
+        pipelineId: true,
+        status: true,
+        startedAt: true,
         service: {
           select: {
             serviceName: true,
@@ -39,14 +43,14 @@ export async function GET(req: Request) {
             group: {
               select: {
                 groupName: true,
-              }
-            }
-          }
-        }
+              },
+            },
+          },
+        },
       },
       orderBy: {
-        startedAt: 'asc'
-      }
+        startedAt: "asc",
+      },
     });
 
     // Response includes flag to extend session if there are active scans
@@ -56,7 +60,6 @@ export async function GET(req: Request) {
       hasActiveScans: activeScans.length > 0,
       extendSession: activeScans.length > 0, // Signal to frontend to keep session alive
     });
-
   } catch (error: any) {
     console.error("[Active Scans Error]:", error);
     return NextResponse.json(

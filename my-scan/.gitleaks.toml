@@ -1,0 +1,44 @@
+# Gitleaks Configuration for VisOps-CodeScanning
+# This config ensures comprehensive secret detection including .env files
+
+title = "Gitleaks Config for VisOps"
+
+# Extend the default gitleaks config
+[extend]
+useDefault = true
+
+# Additional rules for common secret patterns
+[[rules]]
+id = "generic-api-key"
+description = "Generic API Key"
+regex = '''(?i)(api[_-]?key|apikey|api[_-]?secret)['\"]?\s*[:=]\s*['\"]?([a-zA-Z0-9_\-]{20,})'''
+tags = ["api", "key", "generic"]
+
+[[rules]]
+id = "env-secret"
+description = "Environment Secret Variable"
+regex = '''(?i)(secret|password|passwd|pwd|token|api[_-]?key)['\"]?\s*[:=]\s*['\"]?([^\s'\"]{8,})'''
+tags = ["secret", "env", "password"]
+
+[[rules]]
+id = "database-connection"
+description = "Database Connection String"
+regex = '''(?i)(mongodb|mysql|postgres|postgresql|redis)://[^\s'\"]+'''
+tags = ["database", "connection"]
+
+# Allowlist patterns to reduce false positives
+[allowlist]
+description = "Allowlist common false positives"
+regexes = [
+    '''(?i)(example|sample|dummy|test|fake|placeholder|xxx|changeme)''',
+    '''your[_-]?(api|secret|key|token)''',
+    '''<(API|SECRET|KEY|TOKEN)>''',
+]
+
+# File patterns to explicitly include
+paths = [
+    '''\\.env$''',
+    '''\\.env\\..*$''',
+    '''config\\.(js|ts|json|yaml|yml)$''',
+    '''settings\\.(py|js|ts)$''',
+]

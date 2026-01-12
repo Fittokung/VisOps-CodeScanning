@@ -1,33 +1,88 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
 const ADMIN_EMAILS = ["admin@example.com", "dev@southth.com"];
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    // รับ Email คนที่ขอดูรายการ
-    const requestorEmail = req.headers.get("x-user-email");
+    const session = await getServerSession(authOptions);
 
-    if (!requestorEmail) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const isAdmin = ADMIN_EMAILS.includes(requestorEmail);
+    const userId = (session.user as any).id;
+    const userEmail = session.user.email || "";
+    const isAdmin = ADMIN_EMAILS.includes(userEmail);
 
-    const whereClause = isAdmin ? {} : { group: { userEmail: requestorEmail } };
+    // Query project groups with services
+    const whereClause = isAdmin ? {} : { userId: userId };
 
-    const services = await prisma.projectService.findMany({
-      where: whereClause,
+    const groups = await prisma.projectGroup.findMany({
+      where: { ...whereClause, isActive: true },
       include: {
-        group: true 
+        services: {
+          include: {
+            scans: {
+              take: 1,
+              orderBy: { startedAt: "desc" },
+              where: {
+                status: {
+                  in: ["SUCCESS", "PASSED", "FAILED_SECURITY", "BLOCKED"],
+                },
+              },
+              select: {
+                id: true,
+                pipelineId: true,
+                status: true,
+                imageTag: true,
+                vulnCritical: true,
+                vulnHigh: true,
+                vulnMedium: true,
+                vulnLow: true,
+                startedAt: true,
+              },
+            },
+          },
+        },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json(services);
+    // Transform data to match expected format
+    const transformedGroups = groups.map((group) => ({
+      id: group.id,
+      groupName: group.groupName,
+      repoUrl: group.repoUrl,
+      services: group.services.map((service) => ({
+        id: service.id,
+        serviceName: service.serviceName,
+        contextPath: service.contextPath,
+        lastScan: service.scans[0]
+          ? {
+              id: service.scans[0].id,
+              pipelineId: service.scans[0].pipelineId || "",
+              status: service.scans[0].status,
+              imageTag: service.scans[0].imageTag,
+              createdAt:
+                service.scans[0].startedAt?.toISOString() ||
+                new Date().toISOString(),
+              vulnCritical: service.scans[0].vulnCritical,
+            }
+          : undefined,
+      })),
+    }));
+
+    return NextResponse.json(transformedGroups);
   } catch (error) {
-    return NextResponse.json({ error: "Failed to fetch services" }, { status: 500 });
+    console.error("Failed to fetch services:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch services" },
+      { status: 500 }
+    );
   }
 }

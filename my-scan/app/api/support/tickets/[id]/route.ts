@@ -11,18 +11,18 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const userId = (session.user as any).id;
     const userRole = (session.user as any).role;
-    const ticketId = params.id;
+    const { id: ticketId } = await params;
 
     const ticket = await prisma.supportTicket.findUnique({
       where: { id: ticketId },
@@ -32,9 +32,9 @@ export async function GET(
             id: true,
             name: true,
             email: true,
-          }
-        }
-      }
+          },
+        },
+      },
     });
 
     if (!ticket) {
@@ -42,12 +42,11 @@ export async function GET(
     }
 
     // Users can only view their own tickets, admins can view all
-    if (userRole !== 'admin' && ticket.userId !== userId) {
+    if (userRole !== "admin" && ticket.userId !== userId) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     return NextResponse.json({ ticket });
-
   } catch (error: any) {
     console.error("Ticket fetch error:", error);
     return NextResponse.json(
@@ -59,23 +58,23 @@ export async function GET(
 
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const userId = (session.user as any).id;
     const userRole = (session.user as any).role;
-    const ticketId = params.id;
+    const { id: ticketId } = await params;
 
     const { status, adminReply, priority } = await req.json();
 
     // Only admins can update tickets
-    if (userRole !== 'admin') {
+    if (userRole !== "admin") {
       return NextResponse.json(
         { error: "Only admins can update tickets" },
         { status: 403 }
@@ -86,8 +85,8 @@ export async function PATCH(
 
     if (status) {
       updateData.status = status;
-      
-      if (status === 'RESOLVED' || status === 'CLOSED') {
+
+      if (status === "RESOLVED" || status === "CLOSED") {
         updateData.resolvedAt = new Date();
       }
     }
@@ -109,9 +108,8 @@ export async function PATCH(
     return NextResponse.json({
       success: true,
       ticket: updatedTicket,
-      message: "Ticket updated successfully"
+      message: "Ticket updated successfully",
     });
-
   } catch (error: any) {
     console.error("Ticket update error:", error);
     return NextResponse.json(

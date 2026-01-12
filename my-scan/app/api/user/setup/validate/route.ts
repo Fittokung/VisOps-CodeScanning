@@ -7,15 +7,16 @@ import { validateAllTokens } from "@/lib/tokenValidator";
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { githubPAT, dockerUsername, dockerToken } = await req.json();
+    const { githubPAT, githubUsername, dockerUsername, dockerToken } =
+      await req.json();
 
     // Validate input
-    if (!githubPAT || !dockerUsername || !dockerToken) {
+    if (!githubPAT || !githubUsername || !dockerUsername || !dockerToken) {
       return NextResponse.json(
         { error: "All fields are required" },
         { status: 400 }
@@ -45,7 +46,8 @@ export async function POST(req: Request) {
       success: true,
       githubValid: true,
       dockerValid: true,
-      githubUsername: validationResult.githubUsername,
+      githubUsername: validationResult.githubUsername || githubUsername,
+      dockerUsername: dockerUsername,
     });
   } catch (error: any) {
     console.error("Token validation error:", error);
