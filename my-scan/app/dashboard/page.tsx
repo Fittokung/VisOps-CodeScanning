@@ -2,36 +2,32 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useState, useRef, useEffect } from "react"; // เพิ่ม useEffect สำหรับ logic
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import useSWR, { mutate } from "swr"; // ✅ Import SWR
 import {
   Loader2,
   Trash2,
   RefreshCw,
-  Search,
-  History,
   TrendingUp,
   AlertCircle,
   CheckCircle2,
   XCircle,
-  Play,
-  Clock,
   Shield,
   Package,
   ExternalLink,
-  MoreVertical,
   Eye,
-  StopCircle,
-  ArrowRight,
   Activity,
   Folder,
   Server,
   Plus,
   Edit2,
+  X,
 } from "lucide-react";
 import AddServiceDialog from "@/components/AddServiceDialog";
 
+// Types
 interface Project {
   id: string;
   groupName: string;
@@ -74,12 +70,14 @@ interface ActiveScan {
   startedAt: string;
 }
 
+// Fetcher Function
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
 export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [activeScans, setActiveScans] = useState<ActiveScan[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  // State
   const [deletingProject, setDeletingProject] = useState<string | null>(null);
   const [scanningService, setScanningService] = useState<string | null>(null);
   const [showRescanModal, setShowRescanModal] = useState<{
@@ -97,118 +95,71 @@ export default function DashboardPage() {
     repoUrl: string;
   } | null>(null);
 
-  // ✅ REF: เก็บรายการ Scan ที่วิ่งอยู่รอบที่แล้ว เพื่อเช็คว่าอันไหนหายไป (เสร็จแล้ว)
+  // ✅ REF: เก็บ ID ของ Scan รอบที่แล้วไว้เปรียบเทียบ
   const prevActiveScanIds = useRef<Set<string>>(new Set());
 
+  // ✅ 1. SWR: Active Scans (Poll ทุก 2 วินาที)
+  const { data: activeScansData } = useSWR(
+    status === "authenticated" ? "/api/scan/status/active" : null,
+    fetcher,
+    { refreshInterval: 2000 }
+  );
+
+  // ✅ 2. SWR: Dashboard Data (Poll ทุก 10 วินาที)
+  const { data: dashboardData, isLoading: dashboardLoading } = useSWR(
+    status === "authenticated" ? "/api/dashboard" : null,
+    fetcher,
+    {
+      refreshInterval: 10000,
+      revalidateOnFocus: true,
+    }
+  );
+
+  const projects: Project[] = dashboardData?.projects || [];
+  const activeScans: ActiveScan[] = activeScansData?.activeScans || [];
+
+  // ✅ Logic: Smart Refresh (ทำงานเมื่อ activeScans เปลี่ยน)
+  // ถ้ามีงานเสร็จ หรือมีงานใหม่ -> สั่ง SWR ให้โหลด Dashboard ใหม่ทันที
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.replace("/login");
-    } else if (status === "authenticated") {
-      // เรียกข้อมูลครั้งแรกทันที
-      fetchDashboardData();
-      fetchActiveScans();
+    if (!activeScansData) return;
 
-      // ✅ REFRESH RATE: Active Scans ถี่ขึ้น (2s) เพื่อความ Realtime แบบเดียวกับหน้า scan
-      const activeScansInterval = setInterval(fetchActiveScans, 2000);
+    const currentIds = new Set(activeScans.map((s) => s.id));
+    const prevIds = prevActiveScanIds.current;
 
-      // ✅ REFRESH RATE: Dashboard ปกติ (8s) - เร็วขึ้นเล็กน้อยเพื่อ sync ดีขึ้น
-      const dashboardInterval = setInterval(fetchDashboardData, 8000);
+    let hasFinishedScan = false;
+    let hasNewScan = false;
 
-      return () => {
-        clearInterval(activeScansInterval);
-        clearInterval(dashboardInterval);
-      };
+    // เช็คว่ามี ID หายไปไหม (เสร็จแล้ว)
+    prevIds.forEach((id) => {
+      if (!currentIds.has(id)) hasFinishedScan = true;
+    });
+
+    // เช็คว่ามี ID เพิ่มมาไหม (เริ่มใหม่)
+    currentIds.forEach((id) => {
+      if (!prevIds.has(id)) hasNewScan = true;
+    });
+
+    if (hasFinishedScan || hasNewScan) {
+      console.log("🔄 Scan status changed, refreshing dashboard...");
+      mutate("/api/dashboard"); // Force re-fetch dashboard
     }
-  }, [status, router]);
 
-  const fetchDashboardData = async () => {
-    try {
-      // ✅ Cache Control: ป้องกัน Browser Cache ข้อมูลเก่า + เพิ่ม timestamp เพื่อ force refresh
-      const response = await fetch(`/api/dashboard?_t=${Date.now()}`, {
-        headers: {
-          "Cache-Control": "no-store, no-cache, must-revalidate",
-          Pragma: "no-cache",
-        },
-        cache: "no-store",
-      });
+    prevActiveScanIds.current = currentIds;
+  }, [activeScansData]); // Run whenever active scans data updates
 
-      if (response.ok) {
-        const data = await response.json();
-        setProjects(data.projects || []);
-        // Update active scans จาก dashboard ด้วยเพื่อให้ข้อมูลตรงกันที่สุด
-        if (data.activeScans) {
-          setActiveScans(data.activeScans);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to fetch dashboard data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Auth Check
+  if (status === "unauthenticated") {
+    router.replace("/login");
+    return null;
+  }
 
-  const fetchActiveScans = async () => {
-    try {
-      // ✅ Cache Control + timestamp เพื่อ realtime update
-      const response = await fetch(`/api/scan/status/active?_t=${Date.now()}`, {
-        headers: {
-          "Cache-Control": "no-store, no-cache, must-revalidate",
-          Pragma: "no-cache",
-        },
-        cache: "no-store",
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const currentScans: ActiveScan[] = data.activeScans || [];
-
-        setActiveScans(currentScans);
-
-        // ✅ LOGIC: ตรวจสอบการเปลี่ยนแปลงสถานะอย่างละเอียด
-        const currentIds = new Set(currentScans.map((s) => s.id));
-        const prevIds = prevActiveScanIds.current;
-
-        let hasFinishedScan = false;
-        let hasNewScan = false;
-
-        // เช็คว่ามี ID ไหนที่เคยมีในรอบที่แล้ว แต่รอบนี้ไม่มี (แปลว่าเสร็จแล้ว/หายไป)
-        prevIds.forEach((id) => {
-          if (!currentIds.has(id)) {
-            hasFinishedScan = true;
-            console.log("🎯 Scan finished detected! ID:", id);
-          }
-        });
-
-        // เช็คว่ามี scan ใหม่เพิ่มเข้ามาหรือไม่
-        currentIds.forEach((id) => {
-          if (!prevIds.has(id)) {
-            hasNewScan = true;
-            console.log("🆕 New scan detected! ID:", id);
-          }
-        });
-
-        // ✅ TRIGGER: ถ้ามี Scan เสร็จหรือเริ่มใหม่ ให้รีเฟรช Dashboard ใหญ่ทันที!
-        if (hasFinishedScan || hasNewScan) {
-          console.log("🔄 Refreshing dashboard due to scan state change...");
-          await fetchDashboardData();
-        }
-
-        // อัปเดต Reference สำหรับรอบถัดไป
-        prevActiveScanIds.current = currentIds;
-
-        if (data.hasActiveScans) {
-          await fetch("/api/auth/session"); // Keep session alive
-        }
-      }
-    } catch (error) {
-      console.error("Failed to fetch active scans:", error);
-    }
-  };
-
+  // Toast Helper
   const showToast = (message: string, type: "success" | "error" | "info") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
   };
+
+  // --- Handlers --- (Logic เดิม)
 
   const handleDeleteProject = async (
     projectId: string,
@@ -230,16 +181,12 @@ export default function DashboardPage() {
 
       if (response.ok) {
         showToast("Project removed from dashboard", "success");
-        fetchDashboardData();
+        mutate("/api/dashboard"); // Refresh immediate
       } else {
         const error = await response.json();
         if (error.hasActiveScans && !forceStop) {
           if (
-            confirm(
-              `This project has ${
-                error.activeCount || "active"
-              } scan(s) running.\n\nDo you want to force stop all scans and delete?`
-            )
+            confirm(`This project has running scans. Force stop and delete?`)
           ) {
             handleDeleteProject(projectId, true);
             return;
@@ -272,7 +219,6 @@ export default function DashboardPage() {
       });
 
       if (response.ok) {
-        const data = await response.json();
         showToast(
           scanMode === "SCAN_AND_BUILD"
             ? "Scan & Build started"
@@ -281,14 +227,7 @@ export default function DashboardPage() {
         );
         setShowRescanModal(null);
         setRescanTag("latest");
-
-        // Trigger fetch immediately so UI updates fast
-        fetchActiveScans();
-
-        if (data.pipelineId) {
-          // Optional: redirect or just stay on dashboard
-          // router.push(`/scan/${data.pipelineId}`);
-        }
+        mutate("/api/scan/status/active"); // Refresh Active Scans immediate
       } else {
         const error = await response.json();
         showToast(`Error: ${error.error}`, "error");
@@ -303,7 +242,6 @@ export default function DashboardPage() {
 
   const handleUpdateProject = async () => {
     if (!editingProject) return;
-
     try {
       const response = await fetch(`/api/projects/${editingProject.id}`, {
         method: "PATCH",
@@ -317,7 +255,7 @@ export default function DashboardPage() {
       if (response.ok) {
         showToast("Project updated successfully", "success");
         setEditingProject(null);
-        fetchDashboardData();
+        mutate("/api/dashboard");
       } else {
         const error = await response.json();
         showToast(`Error: ${error.error}`, "error");
@@ -345,7 +283,7 @@ export default function DashboardPage() {
     }
   };
 
-  if (loading || status === "loading") {
+  if (dashboardLoading && !dashboardData) {
     return (
       <div className="min-h-screen bg-slate-50">
         <div className="max-w-7xl mx-auto px-4 py-8">
@@ -397,51 +335,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Floating Active Scans Popup - Bottom Right */}
-      {activeScans.length > 0 && (
-        <div className="fixed bottom-6 right-6 z-40 animate-in slide-in-from-bottom-5 duration-300">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden w-80">
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-white">
-                <Activity className="w-5 h-5 animate-pulse" />
-                <span className="font-semibold">
-                  Active Scans ({activeScans.length})
-                </span>
-              </div>
-              <Link
-                href="/scan/history"
-                className="text-blue-100 hover:text-white text-xs underline"
-              >
-                View All
-              </Link>
-            </div>
-            <div className="max-h-64 overflow-y-auto divide-y divide-slate-100">
-              {activeScans.slice(0, 5).map((scan) => (
-                <Link
-                  key={scan.id}
-                  href={
-                    scan.pipelineId ? `/scan/${scan.pipelineId}` : `/dashboard`
-                  }
-                  className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                      <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-slate-800 text-sm">
-                        {scan.service?.serviceName || "Manual Scan"}
-                      </p>
-                      <p className="text-xs text-slate-500">{scan.status}</p>
-                    </div>
-                  </div>
-                  <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition" />
-                </Link>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ⚠️ ลบ Widget เดิมออกแล้ว เพราะใช้ตัว Global ใน Layout แทน */}
 
       {/* Re-scan Modal */}
       {showRescanModal && (
@@ -530,22 +424,19 @@ export default function DashboardPage() {
                 href="/services"
                 className="inline-flex items-center gap-2 px-4 py-2.5 border border-purple-300 text-purple-700 bg-purple-50 rounded-lg hover:bg-purple-100 transition font-medium"
               >
-                <Server className="w-4 h-4" />
-                Manage Services
+                <Server className="w-4 h-4" /> Manage Services
               </Link>
               <Link
                 href="/scan/scanonly"
                 className="inline-flex items-center gap-2 px-4 py-2.5 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition font-medium"
               >
-                <Shield className="w-4 h-4" />
-                Scan Only
+                <Shield className="w-4 h-4" /> Scan Only
               </Link>
               <Link
                 href="/scan/build"
                 className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium shadow-sm"
               >
-                <Package className="w-4 h-4" />
-                Scan & Build
+                <Package className="w-4 h-4" /> Scan & Build
               </Link>
             </div>
           </div>
@@ -563,29 +454,20 @@ export default function DashboardPage() {
               No Projects Yet
             </h3>
             <p className="text-slate-500 mb-6 max-w-sm mx-auto">
-              Create your first project to scan and analyze your code for
-              security vulnerabilities.
+              Create your first project to scan and analyze your code.
             </p>
             <div className="flex gap-3 justify-center">
               <Link
                 href="/scan/build"
                 className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
               >
-                <Package className="w-4 h-4" />
-                Scan & Build
-              </Link>
-              <Link
-                href="/scan/scanonly"
-                className="inline-flex items-center gap-2 px-6 py-3 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition font-medium"
-              >
-                <Shield className="w-4 h-4" />
-                Scan Only
+                <Package className="w-4 h-4" /> Scan & Build
               </Link>
             </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Add New Project Card - With Mode Selection */}
+            {/* Create New Card */}
             <div className="bg-white rounded-xl border-2 border-dashed border-slate-300 hover:border-blue-400 overflow-hidden transition-all duration-200 flex items-center justify-center min-h-[300px]">
               <div className="text-center p-6 w-full">
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-4">
@@ -602,27 +484,25 @@ export default function DashboardPage() {
                     href="/scan/build"
                     className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-sm"
                   >
-                    <Package className="w-4 h-4" />
-                    Scan & Build
+                    <Package className="w-4 h-4" /> Scan & Build
                   </Link>
                   <Link
                     href="/scan/scanonly"
                     className="inline-flex items-center justify-center gap-2 px-4 py-2.5 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition font-medium text-sm"
                   >
-                    <Shield className="w-4 h-4" />
-                    Scan Only
+                    <Shield className="w-4 h-4" /> Scan Only
                   </Link>
                 </div>
               </div>
             </div>
 
-            {/* Existing Project Cards */}
+            {/* Existing Projects */}
             {projects.map((project) => (
               <div
                 key={project.id}
                 className="bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-lg hover:border-slate-300 transition-all duration-200 group"
               >
-                {/* Project Header - Shows Info Only */}
+                {/* Header */}
                 <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white p-5">
                   <div className="flex justify-between items-start">
                     <div className="flex-1 min-w-0">
@@ -636,7 +516,6 @@ export default function DashboardPage() {
                     <Link
                       href={`/scan/history?projectId=${project.id}`}
                       className="text-slate-400 hover:text-white transition flex-shrink-0 ml-2"
-                      title="View History"
                     >
                       <ExternalLink className="w-4 h-4" />
                     </Link>
@@ -696,54 +575,38 @@ export default function DashboardPage() {
                             </button>
                           </div>
 
-                          {/* Latest Scan Status */}
+                          {/* Latest Scan Badge */}
                           {service.scans.length > 0 && (
-                            <>
-                              <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span
-                                    className={`text-xs px-2 py-0.5 rounded-full border font-medium ${getStatusColor(
-                                      service.scans[0].status
-                                    )}`}
-                                  >
-                                    {service.scans[0].status}
+                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span
+                                  className={`text-xs px-2 py-0.5 rounded-full border font-medium ${getStatusColor(
+                                    service.scans[0].status
+                                  )}`}
+                                >
+                                  {service.scans[0].status}
+                                </span>
+                                {service.scans[0].vulnCritical > 0 && (
+                                  <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold">
+                                    {service.scans[0].vulnCritical} Crit
                                   </span>
-                                  {service.scans[0].vulnCritical > 0 && (
-                                    <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold">
-                                      {service.scans[0].vulnCritical} Critical
-                                    </span>
-                                  )}
-                                  {service.scans[0].vulnHigh > 0 && (
-                                    <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-semibold">
-                                      {service.scans[0].vulnHigh} High
-                                    </span>
-                                  )}
-                                  {service.scans[0].vulnMedium > 0 && (
-                                    <span className="text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded font-medium">
-                                      {service.scans[0].vulnMedium} Medium
-                                    </span>
-                                  )}
-                                  {service.scans[0].vulnLow > 0 && (
-                                    <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
-                                      {service.scans[0].vulnLow} Low
-                                    </span>
-                                  )}
-                                </div>
-                                {service.scans[0].pipelineId ? (
-                                  <Link
-                                    href={`/scan/${service.scans[0].pipelineId}`}
-                                    className="text-xs text-blue-600 hover:underline flex items-center gap-1"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <Eye className="w-3 h-3" /> View
-                                  </Link>
-                                ) : (
-                                  <span className="text-xs text-gray-400">
-                                    No details
+                                )}
+                                {service.scans[0].vulnHigh > 0 && (
+                                  <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-semibold">
+                                    {service.scans[0].vulnHigh} High
                                   </span>
                                 )}
                               </div>
-                            </>
+                              {service.scans[0].pipelineId && (
+                                <Link
+                                  href={`/scan/${service.scans[0].pipelineId}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                                >
+                                  <Eye className="w-3 h-3" /> View
+                                </Link>
+                              )}
+                            </div>
                           )}
                         </div>
                       ))}
@@ -756,7 +619,7 @@ export default function DashboardPage() {
                   )}
                 </div>
 
-                {/* Project Footer Actions */}
+                {/* Footer Actions */}
                 <div className="border-t border-slate-200 px-4 py-3 bg-slate-50 flex items-center justify-between">
                   <AddServiceDialog
                     groupId={project.id}
@@ -772,7 +635,6 @@ export default function DashboardPage() {
                         })
                       }
                       className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition"
-                      title="Edit Project"
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
@@ -786,7 +648,6 @@ export default function DashboardPage() {
                       onClick={() => handleDeleteProject(project.id)}
                       disabled={deletingProject === project.id}
                       className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition disabled:opacity-50"
-                      title="Delete Project"
                     >
                       {deletingProject === project.id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -802,27 +663,17 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Edit Project Modal */}
+      {/* Edit Modal (Same as before) */}
       {editingProject && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
             <div className="bg-gradient-to-r from-slate-800 to-slate-900 px-6 py-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                  <Edit2 className="w-5 h-5 text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-white">Edit Project</h3>
-                  <p className="text-slate-300 text-xs mt-0.5">
-                    Update project details
-                  </p>
-                </div>
-              </div>
+              <h3 className="text-lg font-bold text-white">Edit Project</h3>
               <button
                 onClick={() => setEditingProject(null)}
-                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition"
+                className="text-slate-400 hover:text-white"
               >
-                <XCircle className="w-5 h-5" />
+                <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-6 space-y-4">
@@ -839,7 +690,7 @@ export default function DashboardPage() {
                       groupName: e.target.value,
                     })
                   }
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg"
                 />
               </div>
               <div>
@@ -855,20 +706,20 @@ export default function DashboardPage() {
                       repoUrl: e.target.value,
                     })
                   }
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg font-mono text-sm"
                 />
               </div>
             </div>
             <div className="border-t px-6 py-3 bg-slate-50 flex justify-end gap-3">
               <button
                 onClick={() => setEditingProject(null)}
-                className="px-4 py-2 text-slate-600 hover:text-slate-800 font-medium"
+                className="px-4 py-2 text-slate-600"
               >
                 Cancel
               </button>
               <button
                 onClick={handleUpdateProject}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg"
               >
                 Save Changes
               </button>

@@ -1,3 +1,4 @@
+// components/AddServiceDialog.tsx
 "use client";
 
 import { useState } from "react";
@@ -7,6 +8,7 @@ import { Plus, X, Loader2, AlertCircle, Package } from "lucide-react";
 interface AddServiceDialogProps {
   groupId: string;
   repoUrl: string;
+  onClose?: () => void; // Add this optional prop
 }
 
 // Helper: Extract repo name from URL
@@ -34,6 +36,7 @@ const generateImageName = (repoUrl: string, contextPath: string): string => {
 export default function AddServiceDialog({
   groupId,
   repoUrl,
+  onClose, // Add to destructuring
 }: AddServiceDialogProps) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
@@ -91,6 +94,9 @@ export default function AddServiceDialog({
 
       const { pipelineId } = await startScanRes.json();
 
+      // Call onClose callback if provided
+      onClose?.();
+
       // Step 3: Redirect to scan page
       router.push(`/scan/${pipelineId}`);
     } catch (err) {
@@ -107,6 +113,7 @@ export default function AddServiceDialog({
       setContextPath(".");
       setImageName("");
       setError(null);
+      onClose?.(); // Call onClose when closing
     }
   };
 

@@ -193,6 +193,11 @@ export async function POST(req: Request) {
     // Decrypt user tokens
     const githubToken = decrypt(user.githubPAT);
     const dockerToken = decrypt(user.dockerToken);
+    const frontendUserName =
+      (session.user as any).name ||
+      user.githubUsername ||
+      (session.user as any).email ||
+      "Unknown User";
 
     // Prepare GitLab pipeline variables
     const variables = [
@@ -200,6 +205,7 @@ export async function POST(req: Request) {
       { key: "BUILD_CONTEXT", value: finalConfig.contextPath },
       { key: "USER_TAG", value: imageTag },
       { key: "PROJECT_NAME", value: finalConfig.imageName },
+      { key: "FRONTEND_USER", value: frontendUserName },
 
       // User credentials (decrypted)
       { key: "GIT_USERNAME", value: user.githubUsername || "" },

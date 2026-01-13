@@ -1,7 +1,7 @@
-// app/layout.tsx
 import "./globals.css";
 import React from "react";
 import { Providers } from "./providers";
+import ActiveScanMonitor from "@/components/ActiveScanMonitor";
 
 export const metadata = { title: "VisScan", description: "Code scanning UI" };
 
@@ -16,7 +16,10 @@ export default function RootLayout({
         className="min-h-screen antialiased text-slate-900"
         suppressHydrationWarning={true}
       >
-        <Providers>{children}</Providers>
+        <Providers>
+          {children}
+          <ActiveScanMonitor />{" "}
+        </Providers>
       </body>
     </html>
   );

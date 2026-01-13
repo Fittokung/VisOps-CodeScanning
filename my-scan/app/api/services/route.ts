@@ -19,65 +19,79 @@ export async function GET() {
     const userEmail = session.user.email || "";
     const isAdmin = ADMIN_EMAILS.includes(userEmail);
 
-    // Query project groups with services
-    const whereClause = isAdmin ? {} : { userId: userId };
-
-    const groups = await prisma.projectGroup.findMany({
-      where: { ...whereClause, isActive: true },
+    const services = await prisma.projectService.findMany({
+      where: {
+        group: {
+          // ถ้าไม่ใช่ Admin ให้ดูได้แค่ของตัวเอง
+          ...(isAdmin ? {} : { userId: userId }),
+          isActive: true,
+        },
+      },
       include: {
-        services: {
-          include: {
-            scans: {
-              take: 1,
-              orderBy: { startedAt: "desc" },
-              where: {
-                status: {
-                  in: ["SUCCESS", "PASSED", "FAILED_SECURITY", "BLOCKED"],
-                },
-              },
-              select: {
-                id: true,
-                pipelineId: true,
-                status: true,
-                imageTag: true,
-                vulnCritical: true,
-                vulnHigh: true,
-                vulnMedium: true,
-                vulnLow: true,
-                startedAt: true,
-              },
+        group: {
+          select: {
+            repoUrl: true,
+            groupName: true,
+          },
+        },
+        scans: {
+          take: 1,
+          orderBy: { startedAt: "desc" },
+          where: {
+            status: {
+              in: [
+                "QUEUED",
+                "RUNNING",
+                "SCANNED",
+                "SUCCESS",
+                "PASSED",
+                "FAILED",
+                "FAILED_SECURITY",
+                "BLOCKED",
+              ],
             },
+          },
+          select: {
+            id: true,
+            pipelineId: true,
+            status: true,
+            imageTag: true,
+            vulnCritical: true,
+            vulnHigh: true,
+            vulnMedium: true,
+            vulnLow: true,
+            startedAt: true,
           },
         },
       },
       orderBy: { createdAt: "desc" },
     });
 
-    // Transform data to match expected format
-    const transformedGroups = groups.map((group) => ({
-      id: group.id,
-      groupName: group.groupName,
-      repoUrl: group.repoUrl,
-      services: group.services.map((service) => ({
-        id: service.id,
-        serviceName: service.serviceName,
-        contextPath: service.contextPath,
-        lastScan: service.scans[0]
-          ? {
-              id: service.scans[0].id,
-              pipelineId: service.scans[0].pipelineId || "",
-              status: service.scans[0].status,
-              imageTag: service.scans[0].imageTag,
-              createdAt:
-                service.scans[0].startedAt?.toISOString() ||
-                new Date().toISOString(),
-              vulnCritical: service.scans[0].vulnCritical,
-            }
-          : undefined,
+    // Transform data
+    const transformedServices = services.map((service) => ({
+      id: service.id,
+      serviceName: service.serviceName,
+      imageName: service.imageName,
+      repoUrl: service.group.repoUrl, // ดึง repoUrl มาจาก Group
+      contextPath: service.contextPath,
+      createdAt: service.createdAt,
+      _count: {
+        scans: 1, // หรือจะ query count จริงๆ ก็ได้ถ้าต้องการความแม่นยำ
+      },
+      scans: service.scans.map((scan) => ({
+        id: scan.id,
+        pipelineId: scan.pipelineId || "",
+        status: scan.status,
+        imageTag: scan.imageTag,
+        vulnCritical: scan.vulnCritical || 0,
+        vulnHigh: scan.vulnHigh || 0,
+        vulnMedium: scan.vulnMedium || 0,
+        vulnLow: scan.vulnLow || 0,
+        completedAt: scan.startedAt?.toISOString() || new Date().toISOString(),
       })),
     }));
 
-    return NextResponse.json(transformedGroups);
+    return NextResponse.json({ services: transformedServices });
   } catch (error) {
     console.error("Failed to fetch services:", error);
     return NextResponse.json(

@@ -10,6 +10,7 @@ import {
   Clock,
   Shield,
   AlertCircle,
+  ArrowLeft,
   Loader2,
   RefreshCw,
   Package,
@@ -139,6 +140,12 @@ export default function ServicesPage() {
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <div>
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center text-sm text-gray-500 hover:text-gray-900 mb-2 transition-colors"
+            >
+              <ArrowLeft size={16} className="mr-1" /> Back to Dashboard
+            </Link>
             <h1 className="text-2xl font-bold text-gray-900">My Services</h1>
             <p className="text-sm text-gray-500 mt-1">
               Manage your scanned services and view their history
