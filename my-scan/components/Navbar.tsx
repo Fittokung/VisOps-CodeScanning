@@ -1,4 +1,3 @@
-// components/Navbar.tsx
 "use client";
 
 import { useSession, signOut } from "next-auth/react";
@@ -11,6 +10,8 @@ import {
   FileCode,
   ShieldCheck,
   User,
+  LayoutDashboard,
+  Settings as SettingsIcon,
 } from "lucide-react";
 
 export default function Navbar() {
@@ -18,7 +19,13 @@ export default function Navbar() {
   const pathname = usePathname();
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  // ปิด Dropdown เมื่อคลิกข้างนอก
+
+  // ดึงข้อมูล User ขยายจาก Session
+  const user = session?.user as any;
+  const isAdmin = user?.role === "admin";
+  const isApproved = user?.status === "APPROVED";
+  const isSetupComplete = user?.isSetupComplete;
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
@@ -36,24 +43,13 @@ export default function Navbar() {
   const hideNavbar =
     pathname === "/login" ||
     pathname === "/setup" ||
+    pathname === "/pending" || // ซ่อน Navbar ในหน้าพักรอ
     (pathname === "/" && status === "unauthenticated");
 
-  if (hideNavbar) {
-    return null;
-  }
-
-  if (status === "loading") {
-    return null;
-  }
-
-  if (!session) {
-    return null;
-  }
-
-  const isSetupComplete = (session.user as any)?.isSetupComplete;
+  if (hideNavbar || status === "loading" || !session) return null;
 
   return (
-    <nav className="bg-white border-b sticky top-0 z-50">
+    <nav className="bg-white border-b sticky top-0 z-50 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
@@ -69,9 +65,9 @@ export default function Navbar() {
             </span>
           </Link>
 
-          {/* Navigation Links */}
-          {isSetupComplete && (
-            <div className="flex items-center gap-6">
+          {/* Navigation Links - แสดงเฉพาะผู้ที่ได้รับอนุมัติแล้วเท่านั้น */}
+          {isSetupComplete && isApproved && (
+            <div className="flex items-center gap-4">
               <div className="flex items-center gap-1">
                 <Link
                   href="/dashboard"
@@ -94,55 +90,60 @@ export default function Navbar() {
                   History
                 </Link>
 
-                {/* Admin Dropdown */}
-                <div className="relative" ref={dropdownRef}>
-                  <button
-                    onClick={() => setIsAdminOpen(!isAdminOpen)}
-                    className={`flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                      pathname.startsWith("/admin")
-                        ? "text-blue-600 bg-blue-50"
-                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                    }`}
-                  >
-                    <ShieldCheck size={16} className="text-blue-500" />
-                    Admin
-                    <ChevronDown
-                      size={14}
-                      className={`transition-transform duration-200 ${
-                        isAdminOpen ? "rotate-180" : ""
+                {/* Admin Dropdown: แสดงเฉพาะ Admin เท่านั้น */}
+                {isAdmin && (
+                  <div className="relative" ref={dropdownRef}>
+                    <button
+                      onClick={() => setIsAdminOpen(!isAdminOpen)}
+                      className={`flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                        pathname.startsWith("/admin")
+                          ? "text-purple-600 bg-purple-50 border border-purple-100"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                       }`}
-                    />
-                  </button>
+                    >
+                      <ShieldCheck size={16} className="text-purple-500" />
+                      Admin Tools
+                      <ChevronDown
+                        size={14}
+                        className={`transition-transform duration-200 ${
+                          isAdminOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
 
-                  {isAdminOpen && (
-                    <div className="absolute right-0 mt-2 w-52 bg-white border border-gray-200 rounded-xl shadow-lg py-2 animate-in fade-in zoom-in duration-150">
-                      <Link
-                        href="/admin/history"
-                        onClick={() => setIsAdminOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
-                      >
-                        <History size={16} />
-                        Admin History
-                      </Link>
-                      <Link
-                        href="/admin/template"
-                        onClick={() => setIsAdminOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
-                      >
-                        <FileCode size={16} />
-                        Docker Template
-                      </Link>
-                      <Link
-                        href="/admin/users"
-                        onClick={() => setIsAdminOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
-                      >
-                        <User size={16} />
-                        User Management
-                      </Link>
-                    </div>
-                  )}
-                </div>
+                    {isAdminOpen && (
+                      <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl py-2 animate-in fade-in zoom-in duration-150 ring-1 ring-black ring-opacity-5">
+                        <div className="px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-50 mb-1">
+                          System Management
+                        </div>
+                        <Link
+                          href="/admin/history"
+                          onClick={() => setIsAdminOpen(false)}
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-colors"
+                        >
+                          <History size={16} className="text-gray-400" />
+                          All Scans History
+                        </Link>
+                        <Link
+                          href="/admin/template"
+                          onClick={() => setIsAdminOpen(false)}
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-colors"
+                        >
+                          <FileCode size={16} className="text-gray-400" />
+                          Docker Templates
+                        </Link>
+                        <Link
+                          href="/admin/users"
+                          onClick={() => setIsAdminOpen(false)}
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-colors"
+                        >
+                          <User size={16} />
+                          User Management
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <Link
                   href="/settings"
@@ -156,19 +157,25 @@ export default function Navbar() {
                 </Link>
               </div>
 
-              {/* User Menu */}
+              {/* User Menu & Profile */}
               <div className="flex items-center gap-3 pl-6 border-l border-gray-200">
                 <div className="text-right hidden sm:block">
-                  <div className="text-sm font-semibold text-gray-800 leading-none">
+                  <div className="text-sm font-semibold text-gray-800 leading-none capitalize">
                     {session.user?.name?.split(" ")[0] || "User"}
                   </div>
-                  <div className="text-[10px] text-blue-600 font-medium uppercase mt-0.5">
-                    {(session.user as any)?.role || "Member"}
+                  <div
+                    className={`text-[10px] font-bold uppercase mt-1 px-1.5 py-0.5 rounded shadow-sm inline-block ${
+                      isAdmin
+                        ? "bg-purple-100 text-purple-700"
+                        : "bg-blue-100 text-blue-700"
+                    }`}
+                  >
+                    {user?.role}
                   </div>
                 </div>
                 <button
                   onClick={() => signOut({ callbackUrl: "/" })}
-                  className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 hover:text-gray-900 rounded-lg transition-all"
+                  className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 hover:text-gray-900 rounded-lg transition-all border border-gray-200"
                 >
                   Logout
                 </button>
@@ -176,15 +183,20 @@ export default function Navbar() {
             </div>
           )}
 
-          {/* Setup incomplete nav */}
-          {!isSetupComplete && (
+          {/* Setup incomplete or Not Approved nav */}
+          {(!isSetupComplete || !isApproved) && (
             <div className="flex items-center gap-4">
-              <div className="text-sm text-gray-500 italic">
-                {session.user?.email}
+              <div className="flex flex-col items-end">
+                <div className="text-sm text-gray-500 font-medium">
+                  {session.user?.email}
+                </div>
+                <div className="text-[10px] text-amber-600 font-bold uppercase">
+                  {user?.status}
+                </div>
               </div>
               <button
                 onClick={() => signOut({ callbackUrl: "/" })}
-                className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-all"
+                className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-all border border-red-100"
               >
                 Logout
               </button>
