@@ -1,0 +1,17 @@
+# docker-compose.db.yml
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: scan-db
+    restart: always
+    environment:
+      POSTGRES_USER: VisScan
+      POSTGRES_PASSWORD: VisScan1234
+      POSTGRES_DB: scandb
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

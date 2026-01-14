@@ -19,11 +19,11 @@
 2. API mock (/api/scan/*)
 3. Mock pipeline / progress
 4. Mock severity result
-5. UX/Flow ที่ถูกต้อง
+5. UX/Flow ที่ถูกต้อง fix : confirm build to push to docker hub
 
 ### สิ่งที่ยังไม่มี
-1. ไม่มีการ clone repo จริง
-2. ไม่มีการ scan จริง
+1. ไม่มีการ clone repo จริง ✓
+2. ไม่มีการ scan จริง ✓
 3. ไม่มี container / runner
 4. ไม่มี user / auth
 
@@ -34,3 +34,5 @@
 4.	Container Build
 5.	Security
 6.	Auth / User
+
+test branch

@@ -32,10 +32,21 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
-
+.env.local
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/generated/prisma
+
+# PostgreSQL data
+/pgdata
+/pgdata/*
+
+# Prisma migrations
+/prisma/migrations
+/prisma/migrations/*
+

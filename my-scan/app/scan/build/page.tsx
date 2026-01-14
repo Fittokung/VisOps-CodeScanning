@@ -1,18 +1,31 @@
 // /app/scan/build/page.tsx
-import dynamic from "next/dynamic";
-import FormScan from "@/components/FormScan";
+"use client";
+
+import ScanForm from "@/components/ScanForm";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 
 export default function BuildPage() {
   return (
-    <main className="min-h-screen p-6">
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold">Scan & Build — Form</h1>
-        <p className="text-sm mb-4">
-          Provide repository and Docker Hub credentials (mock). Tokens are not
-          stored in this demo.
-        </p>
-        <FormScan buildMode />
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-4xl mx-auto px-4">
+        {/* Back Button */}
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 transition"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Dashboard
+        </Link>
+
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-gray-900">Scan & Build</h1>
+          <p className="text-gray-500 text-sm mt-1">
+            Scan source code and build Docker image
+          </p>
+        </div>
+        <ScanForm buildMode />
       </div>
-    </main>
+    </div>
   );
 }
