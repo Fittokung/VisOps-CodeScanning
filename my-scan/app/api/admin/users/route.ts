@@ -45,10 +45,24 @@ export async function PATCH(req: Request) {
     const body = await req.json();
     const { userId, status, role } = body;
 
+    // ค้นหาข้อมูลของ User ที่กำลังจะถูกแก้ไขก่อน
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+
     // ป้องกันไม่ให้ Admin แก้ไขสถานะของตัวเอง ป้องกัน Self-Lockout
     if (userId === currentAdminId) {
       return NextResponse.json(
         { error: "You cannot modify your own status or role." },
+        { status: 400 }
+      );
+    }
+
+    // ป้องกันไม่ให้แก้สถานะของคนอื่นที่เป็น Admin เหมือนกัน
+    if (targetUser?.role === "admin") {
+      return NextResponse.json(
+        { error: "Cannot modify status of another Admin" },
         { status: 400 }
       );
     }

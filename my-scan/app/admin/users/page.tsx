@@ -220,10 +220,14 @@ export default function ManageUsersPage() {
                       </td>
                       <td className="p-5 text-right">
                         <div className="flex justify-end gap-1">
-                          {/* เช็คว่าใช่ ID ของเราเองไหม */}
+                          {/* ถ้าเป็นตัวเราเอง or ถ้าคนนั้นเป็น Admin ให้ซ่อนปุ่ม Actions */}
                           {user.id === currentUserId ? (
-                            <span className="text-xs text-slate-400 italic px-2 py-1 bg-slate-100 rounded">
+                            <span className="text-xs text-blue-600 font-medium px-2 py-1 bg-blue-50 rounded-lg">
                               You (Current Admin)
+                            </span>
+                          ) : user.role === "admin" ? (
+                            <span className="text-xs text-purple-600 font-medium px-2 py-1 bg-purple-50 rounded-lg flex items-center gap-1">
+                              <Shield size={12} /> Admin Colleague
                             </span>
                           ) : (
                             <>
