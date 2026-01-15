@@ -34,32 +34,39 @@ model Session {
 }
 
 model User {
-  id                   String          @id @default(cuid())
-  name                 String?
-  email                String?         @unique
-  emailVerified        DateTime?
-  image                String?
-  password             String?
-  isSetupComplete      Boolean         @default(false)
-  role                 String          @default("user")
-  githubPAT            String?
-  githubUsername       String?
-  dockerToken          String?
-  dockerUsername       String?
-  defaultGitUser       String?
-  defaultGitToken      String?
-  defaultDockerUser    String?
-  defaultDockerToken   String?
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @updatedAt
-  dockerOrgName        String?
-  isDockerOrganization Boolean         @default(false)
-  accounts             Account[]
-  groups               ProjectGroup[]
-  sessions             Session[]
-  supportTickets       SupportTicket[]
-  
-  status               String          @default("PENDING") 
+  id              String    @id @default(cuid())
+  name            String?
+  email           String?   @unique
+  emailVerified   DateTime?
+  image           String?
+  password        String?
+  isSetupComplete Boolean   @default(false)
+  role            String    @default("user")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  status          String    @default("PENDING")
+
+  // Relations
+  credentials    Credential[]
+  accounts       Account[]
+  groups         ProjectGroup[]
+  sessions       Session[]
+  supportTickets SupportTicket[]
+}
+
+model Credential {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  provider  String
+  username  String
+  token     String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, provider])
 }
 
 model VerificationToken {

@@ -229,13 +229,13 @@ function ScanHistoryContent() {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-3">
-            <button
+            {/* <button
               onClick={() => router.back()}
               className="p-2 hover:bg-white hover:shadow-sm rounded-full transition-all text-gray-500 hover:text-gray-900"
               title="Go back"
             >
               <ArrowLeft className="w-5 h-5" />
-            </button>
+            </button> */}
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Scan History</h1>
               <p className="text-gray-500 text-sm mt-1">
@@ -293,12 +293,12 @@ function ScanHistoryContent() {
                   ? "This service hasn't been scanned yet."
                   : "You haven't run any scans yet."}
               </p>
-              <Link
+              {/* <Link
                 href="/dashboard"
                 className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-sm"
               >
                 Go to Dashboard
-              </Link>
+              </Link> */}
             </div>
           </div>
         ) : (

@@ -1,178 +1,164 @@
-// app/docs/scanners/page.tsx
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, FileCode, Box, Key, Check, X, Info } from "lucide-react";
+import Image from "next/image";
+import { ExternalLink, ChevronRight } from "lucide-react";
+import OnThisPage from "@/components/OnThisPage";
 
 export default function ScannerDocsPage() {
   const tools = [
     {
       id: "gitleaks",
       name: "Gitleaks",
-      type: "Secret Detection",
-      // ใช้สีเฉพาะที่ Icon เท่านั้น
-      icon: <Key className="w-5 h-5 text-amber-500" />,
+      version: "v8.18.4",
+      logo: "/logos/gitleaks.png",
+      link: "https://gitleaks.io",
       description:
-        "ตรวจจับรหัสผ่าน, API Keys และ Tokens ที่เผลอหลุดเข้าไปใน Source Code",
+        "เครื่องมือป้องกันความปลอดภัยขั้นแรก ทำหน้าที่ตรวจสอบ Git Commit History เพื่อหารหัสผ่าน (Secrets), API Keys และ Tokens",
       scans: [
-        "AWS / Google Cloud Keys",
-        "GitHub / GitLab Tokens",
-        "Private Keys (RSA, PEM)",
+        "Cloud Keys (AWS, GCP, Azure)",
         "Database Credentials",
-        "Webhooks (Slack/Discord)",
+        "Private Keys (RSA, PEM, SSH)",
+        "API Tokens",
       ],
-      notScans: [
-        "Encrypted Secrets",
-        "Environment Variables (Server-side)",
-        "Secrets ใน Database",
-        "Binary Files / Images",
+      limitations: [
+        "ไม่สามารถตรวจจับ Encrypted Secrets",
+        "ไม่สแกน Server Env Variables",
+        "ไม่สแกน Binary Files",
       ],
     },
     {
       id: "semgrep",
       name: "Semgrep",
-      type: "SAST Analysis",
-      icon: <FileCode className="w-5 h-5 text-purple-500" />,
+      version: "Latest",
+      logo: "/logos/semgrep.png",
+      link: "https://semgrep.dev",
       description:
-        "วิเคราะห์โครงสร้างโค้ดเพื่อหาช่องโหว่ทางความปลอดภัย (Vulnerabilities) และ Code Smell",
+        "เครื่องมือวิเคราะห์โครงสร้างโค้ด (Static Analysis) เพื่อหาช่องโหว่ทางความปลอดภัยและ Logic Errors",
       scans: [
-        "OWASP Top 10 (Injection, XSS)",
-        "Unsafe Functions usage",
+        "OWASP Top 10",
+        "Insecure Configuration",
+        "Unsafe Function Usage",
         "Business Logic Flaws",
-        "Support: Java, Go, Python, JS/TS",
       ],
-      notScans: [
-        "Runtime Errors",
-        "Network / Infrastructure issues",
-        "Complex Cross-file Logic",
-        "3rd Party Libraries",
+      limitations: [
+        "ไม่ตรวจจับ Runtime Errors",
+        "Cross-file analysis มีจำกัด",
+        "ไม่ตรวจสอบ Network Infrastructure",
       ],
     },
     {
       id: "trivy",
       name: "Trivy",
-      type: "Container & Dependencies",
-      icon: <Box className="w-5 h-5 text-blue-500" />,
+      version: "v0.53.0",
+      logo: "/logos/trivy.png",
+      link: "https://trivy.dev",
       description:
-        "สแกน Docker Image และ Library Packages เพื่อหาช่องโหว่ (CVEs) ที่เป็นที่รู้จัก",
+        "เครื่องมือสแกนความปลอดภัยสำหรับ Cloud Native ครอบคลุมทั้ง Docker Image, File System และ Dependencies",
       scans: [
-        "OS Packages (Alpine, Debian)",
-        "App Libraries (npm, pip, maven)",
+        "OS Package Vulnerabilities",
+        "Application Dependencies",
+        "Infrastructure as Code",
         "Image Misconfiguration",
-        "Hidden Secrets in Layers",
       ],
-      notScans: [
-        "Custom Code Logic",
-        "Zero-day Vulnerabilities",
-        "Runtime Attacks",
-        "Firewall Config",
+      limitations: [
+        "ไม่ตรวจ Logic ของ Custom Code",
+        "ไม่เจอ Zero-day Vulnerabilities",
+        "ต้องต่อ Internet",
       ],
     },
   ];
 
-  return (
-    <div className="min-h-screen bg-white text-slate-900 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
-        {/* Minimal Header */}
-        <div className="mb-16">
-          <Link
-            href="/dashboard"
-            className="inline-flex items-center text-sm text-slate-400 hover:text-slate-900 transition-colors mb-8 group"
-          >
-            <ArrowLeft
-              size={16}
-              className="mr-2 group-hover:-translate-x-1 transition-transform"
-            />
-            Back to Dashboard
-          </Link>
+  const toc = [
+    { title: "Gitleaks", href: "#gitleaks" },
+    { title: "Semgrep", href: "#semgrep" },
+    { title: "Trivy", href: "#trivy" },
+  ];
 
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-900 mb-3">
+  return (
+    <div className="px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl xl:grid xl:grid-cols-[1fr_250px] xl:gap-8">
+        <div className="min-w-0">
+          <nav className="flex items-center text-sm text-slate-500 mb-6">
+            <Link
+              href="/docs/getting-started"
+              className="hover:text-slate-900 transition-colors"
+            >
+              Docs
+            </Link>
+            <ChevronRight size={14} className="mx-2" />
+            <span className="font-medium text-slate-900">
+              Supported Scanners
+            </span>
+          </nav>
+
+          <h1 className="scroll-m-20 text-3xl font-bold tracking-tight text-slate-900 mb-6">
             Scanner Capabilities
           </h1>
-          <p className="text-lg text-slate-500 font-light leading-relaxed max-w-2xl">
-            Technical breakdown of supported features and limitations for each
-            scanning engine.
+          <p className="text-base text-slate-600 mb-10 leading-7">
+            รายละเอียดเชิงเทคนิค ขอบเขตการทำงาน
+            และข้อจำกัดของเครื่องมือสแกนความปลอดภัย
           </p>
-        </div>
 
-        {/* Tools List (No Cards, Just Clean Sections) */}
-        <div className="space-y-16">
-          {tools.map((tool) => (
-            <div key={tool.id} className="group">
-              {/* Tool Identity */}
-              <div className="flex items-start gap-4 mb-6">
-                <div className="p-2.5 bg-slate-50 rounded-lg group-hover:bg-slate-100 transition-colors">
-                  {tool.icon}
-                </div>
-                <div>
-                  <h2 className="text-xl font-medium text-slate-900">
+          <div className="space-y-16">
+            {tools.map((tool) => (
+              <section key={tool.id} id={tool.id} className="scroll-mt-24">
+                <div className="flex items-center gap-4 mb-4 pb-4 border-b border-slate-100">
+                  <div className="relative w-8 h-8 shrink-0">
+                    <Image
+                      src={tool.logo}
+                      alt={tool.name}
+                      fill
+                      className="object-contain"
+                    />
+                  </div>
+                  <h2 className="text-xl font-bold text-slate-900">
                     {tool.name}
                   </h2>
-                  <span className="text-sm text-slate-400 font-mono uppercase tracking-wider">
-                    {tool.type}
+                  <span className="text-xs text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                    {tool.version}
                   </span>
-                </div>
-              </div>
-
-              {/* Description */}
-              <p className="text-slate-600 mb-8 pl-[3.25rem] max-w-3xl leading-relaxed">
-                {tool.description}
-              </p>
-
-              {/* Comparison Columns */}
-              <div className="grid md:grid-cols-2 gap-x-12 gap-y-8 pl-[3.25rem]">
-                {/* Supported */}
-                <div>
-                  <h3 className="text-xs font-semibold text-emerald-600 uppercase tracking-widest mb-4 flex items-center gap-2">
-                    <Check size={14} strokeWidth={3} /> Supported
-                  </h3>
-                  <ul className="space-y-3">
-                    {tool.scans.map((item, idx) => (
-                      <li
-                        key={idx}
-                        className="text-sm text-slate-600 flex items-start gap-3"
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full bg-slate-200 mt-1.5 shrink-0" />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
+                  <a
+                    href={tool.link}
+                    target="_blank"
+                    className="ml-auto text-xs text-blue-600 hover:underline flex items-center gap-1"
+                  >
+                    Official Docs <ExternalLink size={10} />
+                  </a>
                 </div>
 
-                {/* Limitations */}
-                <div>
-                  <h3 className="text-xs font-semibold text-rose-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                    <X size={14} strokeWidth={3} /> Limitations
-                  </h3>
-                  <ul className="space-y-3">
-                    {tool.notScans.map((item, idx) => (
-                      <li
-                        key={idx}
-                        className="text-sm text-slate-500 flex items-start gap-3"
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full bg-slate-100 mt-1.5 shrink-0" />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
+                <p className="text-sm text-slate-600 mb-6 leading-6">
+                  {tool.description}
+                </p>
 
-              {/* Divider */}
-              <div className="h-px bg-slate-100 mt-16 w-full" />
-            </div>
-          ))}
+                <div className="grid md:grid-cols-2 gap-8">
+                  <div>
+                    <h3 className="text-xs font-semibold text-slate-900 uppercase tracking-wider mb-3">
+                      Supported
+                    </h3>
+                    <ul className="list-disc pl-4 space-y-1 text-sm text-slate-600 marker:text-slate-300">
+                      {tool.scans.map((item, i) => (
+                        <li key={i}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-semibold text-slate-900 uppercase tracking-wider mb-3">
+                      Limitations
+                    </h3>
+                    <ul className="list-disc pl-4 space-y-1 text-sm text-slate-600 marker:text-slate-300">
+                      {tool.limitations.map((item, i) => (
+                        <li key={i}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </section>
+            ))}
+          </div>
         </div>
 
-        {/* Footer Note */}
-        <div className="mt-12 flex gap-4 text-sm text-slate-400 bg-slate-50 p-6 rounded-lg">
-          <Info className="w-5 h-5 shrink-0 text-slate-500" />
-          <p>
-            Combining these three scanners covers approximately 80% of common
-            security risks. However, automated scanning is not a replacement for
-            manual penetration testing.
-          </p>
-        </div>
+        <OnThisPage links={toc} />
       </div>
     </div>
   );

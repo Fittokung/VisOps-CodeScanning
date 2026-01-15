@@ -1,4 +1,3 @@
-// /app/scan/build/page.tsx
 "use client";
 
 import ScanForm from "@/components/ScanForm";
@@ -8,7 +7,7 @@ import { ArrowLeft } from "lucide-react";
 export default function BuildPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Back Button */}
         <Link
           href="/dashboard"
@@ -18,13 +17,15 @@ export default function BuildPage() {
           Back to Dashboard
         </Link>
 
-        <div className="mb-8">
+        {/* Header (Optional: ถ้าใน ScanForm มี Header แล้ว ลบส่วนนี้ออกก็ได้ หรือเก็บไว้เป็น Title หน้า) */}
+        {/* <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900">Scan & Build</h1>
           <p className="text-gray-500 text-sm mt-1">
             Scan source code and build Docker image
           </p>
-        </div>
-        <ScanForm buildMode />
+        </div> */}
+
+        <ScanForm buildMode={true} />
       </div>
     </div>
   );

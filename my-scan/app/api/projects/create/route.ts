@@ -1,7 +1,5 @@
-// app/api/projects/create/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { encrypt } from "@/lib/crypto";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
@@ -13,79 +11,155 @@ export async function POST(req: Request) {
     const body = await req.json();
 
     const {
-      email: bodyEmail,
+      // Inputs
       groupName,
       repoUrl,
       isPrivate,
-      gitUser,
-      gitToken,
       serviceName,
       contextPath,
       imageName,
-      dockerUser,
-      dockerToken,
       isNewGroup,
       groupId,
+
+      // New Inputs: รับ ID จาก Dropdown แทนการรับ Token ตรงๆ
+      gitCredentialId,
+      dockerCredentialId,
     } = body;
 
-    const userEmail = session?.user?.email || bodyEmail;
+    // 1. Auth Check
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userEmail = session.user.email;
 
-    if (!userEmail)
-      return NextResponse.json({ error: "Email is required" }, { status: 400 });
+    // 2. User Check
+    const user = await prisma.user.findUnique({
+      where: { email: userEmail },
+    });
 
-    // 1. Fetch User
-    const user = await prisma.user.findUnique({ where: { email: userEmail } });
-
-    if (!user)
+    if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
-    if (!user.isSetupComplete)
+    }
+    if (!user.isSetupComplete) {
       return NextResponse.json(
         { error: "Please complete account setup first." },
         { status: 400 }
       );
-
-    // 2. Credential Logic
-    const finalGitUser = gitUser || user.defaultGitUser;
-    const finalDockerUser = dockerUser || user.defaultDockerUser;
-    const finalGitToken =
-      gitToken && gitToken.trim() !== ""
-        ? encrypt(gitToken)
-        : user.defaultGitToken;
-    const finalDockerToken =
-      dockerToken && dockerToken.trim() !== ""
-        ? encrypt(dockerToken)
-        : user.defaultDockerToken;
-
-    if (!finalGitToken || !finalDockerToken) {
-      return NextResponse.json(
-        { error: "Missing Credentials." },
-        { status: 400 }
-      );
     }
 
-    // 🔥 3. TRANSACTION START: ทำทุกอย่างในก้อนเดียว เพื่อป้องกันข้อมูลขยะ 🔥
+    // 3. Resolve GitHub Credential
+    let finalGitUser: string;
+    let finalGitToken: string;
+
+    if (gitCredentialId) {
+      // กรณี User เลือกจาก Dropdown
+      const cred = await prisma.credential.findFirst({
+        where: {
+          id: gitCredentialId,
+          userId: user.id,
+          provider: "GITHUB",
+        },
+      });
+
+      if (!cred) {
+        return NextResponse.json(
+          { error: "Invalid GitHub Account selected" },
+          { status: 400 }
+        );
+      }
+      finalGitUser = cred.username;
+      finalGitToken = cred.token; // Token นี้ถูก Encrypt อยู่แล้วใน DB นำไปใช้ต่อได้เลย
+    } else {
+      // กรณีไม่ได้เลือก (Fallback หา Default)
+      const defaultCred = await prisma.credential.findFirst({
+        where: {
+          userId: user.id,
+          provider: "GITHUB",
+          isDefault: true,
+        },
+      });
+
+      if (!defaultCred) {
+        return NextResponse.json(
+          {
+            error:
+              "No default GitHub account found. Please check your settings.",
+          },
+          { status: 400 }
+        );
+      }
+      finalGitUser = defaultCred.username;
+      finalGitToken = defaultCred.token;
+    }
+
+    // 4. Resolve Docker Credential
+    let finalDockerUser: string;
+    let finalDockerToken: string;
+
+    if (dockerCredentialId) {
+      // กรณี User เลือกจาก Dropdown
+      const cred = await prisma.credential.findFirst({
+        where: {
+          id: dockerCredentialId,
+          userId: user.id,
+          provider: "DOCKER",
+        },
+      });
+
+      if (!cred) {
+        return NextResponse.json(
+          { error: "Invalid Docker Account selected" },
+          { status: 400 }
+        );
+      }
+      finalDockerUser = cred.username;
+      finalDockerToken = cred.token;
+    } else {
+      // กรณีไม่ได้เลือก (Fallback หา Default)
+      const defaultCred = await prisma.credential.findFirst({
+        where: {
+          userId: user.id,
+          provider: "DOCKER",
+          isDefault: true,
+        },
+      });
+
+      if (!defaultCred) {
+        return NextResponse.json(
+          {
+            error:
+              "No default Docker account found. Please check your settings.",
+          },
+          { status: 400 }
+        );
+      }
+      finalDockerUser = defaultCred.username;
+      finalDockerToken = defaultCred.token;
+    }
+
+    //  5. TRANSACTION START
     const result = await prisma.$transaction(async (tx) => {
-      // A. เช็ค Quota ภายใน Transaction (นับเฉพาะ Active Group)
-      // การนับตรงนี้จะแม่นยำที่สุด ณ เวลาที่กดปุ่ม
+      // A. เช็ค Quota (นับเฉพาะ Active Group)
       const currentServicesCount = await tx.projectService.count({
         where: {
           group: {
             userId: user.id,
-            isActive: true, // นับเฉพาะที่ Active เท่านั้น
+            isActive: true,
           },
         },
       });
 
       if (currentServicesCount >= MAX_SERVICES_PER_USER) {
-        throw new Error("QUOTA_EXCEEDED"); // ส่ง Error เพื่อให้ Rollback ไม่สร้าง Group ทิ้งไว้
+        throw new Error("QUOTA_EXCEEDED");
       }
 
       let targetGroupId = groupId;
 
       // B. สร้าง Group (ถ้าเป็น Group ใหม่)
       if (isNewGroup) {
-        if (!groupName || !repoUrl)
+        if (!groupName || !repoUrl) {
           throw new Error("Group Name and Repo URL are required");
+        }
 
         const newGroup = await tx.projectGroup.create({
           data: {
@@ -93,7 +167,7 @@ export async function POST(req: Request) {
             repoUrl,
             isPrivate: !!isPrivate,
             gitUser: finalGitUser,
-            gitToken: finalGitToken,
+            gitToken: finalGitToken, // Save encrypted token
             isActive: true,
             userId: user.id,
           },
@@ -101,12 +175,14 @@ export async function POST(req: Request) {
         targetGroupId = newGroup.id;
       }
 
-      if (!targetGroupId) throw new Error("Group ID is missing");
+      if (!targetGroupId) {
+        throw new Error("Group ID is missing");
+      }
 
       // C. สร้าง Service
-      // ถ้าบรรทัดนี้ Error -> Group ที่สร้างตะกี้จะหายไปเองอัตโนมัติ (ไม่กิน Quota ฟรี)
-      if (!serviceName || !imageName)
+      if (!serviceName || !imageName) {
         throw new Error("Service Name and Image Name are required");
+      }
 
       const newService = await tx.projectService.create({
         data: {
@@ -115,7 +191,7 @@ export async function POST(req: Request) {
           contextPath: contextPath || ".",
           imageName,
           dockerUser: finalDockerUser,
-          dockerToken: finalDockerToken,
+          dockerToken: finalDockerToken, // Save encrypted token
         },
       });
 
@@ -125,11 +201,12 @@ export async function POST(req: Request) {
     console.log(
       `[Project Created] Service ${result.serviceId} created for User ${userEmail}`
     );
+
     return NextResponse.json({ success: true, serviceId: result.serviceId });
   } catch (error: any) {
     console.error("Create Project Error:", error);
 
-    // ดักจับ Error จาก Transaction
+    // จัดการ Error เฉพาะทาง
     if (error.message === "QUOTA_EXCEEDED") {
       return NextResponse.json(
         {
