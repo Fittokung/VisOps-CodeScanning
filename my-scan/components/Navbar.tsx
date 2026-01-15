@@ -1,3 +1,4 @@
+// components/Navbar.tsx
 "use client";
 
 import { useSession, signOut } from "next-auth/react";
@@ -12,6 +13,7 @@ import {
   User,
   LayoutDashboard,
   Settings as SettingsIcon,
+  BookOpen,
 } from "lucide-react";
 
 export default function Navbar() {
@@ -20,7 +22,6 @@ export default function Navbar() {
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // ดึงข้อมูล User ขยายจาก Session
   const user = session?.user as any;
   const isAdmin = user?.role === "admin";
   const isApproved = user?.status === "APPROVED";
@@ -39,11 +40,10 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Don't show navbar on login, setup, or home page (for unauthenticated users)
   const hideNavbar =
     pathname === "/login" ||
     pathname === "/setup" ||
-    pathname === "/pending" || // ซ่อน Navbar ในหน้าพักรอ
+    pathname === "/pending" ||
     (pathname === "/" && status === "unauthenticated");
 
   if (hideNavbar || status === "loading" || !session) return null;
@@ -65,13 +65,13 @@ export default function Navbar() {
             </span>
           </Link>
 
-          {/* Navigation Links - แสดงเฉพาะผู้ที่ได้รับอนุมัติแล้วเท่านั้น */}
+          {/* Navigation Links */}
           {isSetupComplete && isApproved && (
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-1">
                 <Link
                   href="/dashboard"
-                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                  className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                     pathname === "/dashboard"
                       ? "text-blue-600 bg-blue-50"
                       : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
@@ -90,7 +90,20 @@ export default function Navbar() {
                   History
                 </Link>
 
-                {/* Admin Dropdown: แสดงเฉพาะ Admin เท่านั้น */}
+                {/* ✅ เพิ่ม Link: Scanner Info ตรงนี้ */}
+                <Link
+                  href="/docs/scanners"
+                  className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    pathname.startsWith("/docs")
+                      ? "text-blue-600 bg-blue-50"
+                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                  }`}
+                >
+                  <BookOpen size={16} />
+                  Scanner Info
+                </Link>
+
+                {/* Admin Dropdown */}
                 {isAdmin && (
                   <div className="relative" ref={dropdownRef}>
                     <button
