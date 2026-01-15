@@ -9,7 +9,6 @@ import {
   ExternalLink,
   Clock,
   Shield,
-  AlertCircle,
   ArrowLeft,
   Loader2,
   RefreshCw,
@@ -36,6 +35,8 @@ interface Service {
     completedAt: string;
   }>;
 }
+
+const MAX_SERVICES = 6; // Limit Quota
 
 export default function ServicesPage() {
   const router = useRouter();
@@ -79,7 +80,7 @@ export default function ServicesPage() {
   const handleDelete = async (serviceId: string, serviceName: string) => {
     if (
       !confirm(
-        `Are you sure you want to delete "${serviceName}" and all its scan history?`
+        `Are you sure you want to delete "${serviceName}"? This will free up your quota.`
       )
     )
       return;
@@ -113,6 +114,8 @@ export default function ServicesPage() {
     return service.scans[0];
   };
 
+  const isLimitReached = services.length >= MAX_SERVICES;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -138,7 +141,7 @@ export default function ServicesPage() {
 
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
           <div>
             <Link
               href="/dashboard"
@@ -148,28 +151,59 @@ export default function ServicesPage() {
             </Link>
             <h1 className="text-2xl font-bold text-gray-900">My Services</h1>
             <p className="text-sm text-gray-500 mt-1">
-              Manage your scanned services and view their history
+              Manage your scanned services
             </p>
           </div>
-          <div className="flex gap-3">
+
+          <div className="flex items-center gap-3">
+            {/* Quota Indicator */}
+            <div
+              className={`px-4 py-2 rounded-lg border flex items-center gap-2 ${
+                isLimitReached
+                  ? "bg-red-50 border-red-200 text-red-700"
+                  : "bg-blue-50 border-blue-200 text-blue-700"
+              }`}
+            >
+              <Package size={18} />
+              <div>
+                <span className="font-bold">{services.length}</span>
+                <span className="text-sm opacity-80">
+                  {" "}
+                  / {MAX_SERVICES} Active
+                </span>
+              </div>
+            </div>
+
             <button
               onClick={fetchServices}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm font-medium"
+              className="p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition text-gray-600"
+              title="Refresh List"
             >
-              <RefreshCw size={16} /> Refresh
+              <RefreshCw size={20} />
             </button>
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
-            >
-              <Plus size={16} /> New Scan
-            </Link>
+
+            {isLimitReached ? (
+              <button
+                disabled
+                className="flex items-center gap-2 px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed font-medium"
+                title="Limit Reached. Delete a service to add a new one."
+              >
+                <Plus size={16} /> Limit Reached
+              </button>
+            ) : (
+              <Link
+                href="/dashboard"
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium shadow-sm"
+              >
+                <Plus size={16} /> New Scan
+              </Link>
+            )}
           </div>
         </div>
 
         {/* Services Grid */}
         {services.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center shadow-sm">
             <Package className="w-12 h-12 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
               No services yet
@@ -198,12 +232,15 @@ export default function ServicesPage() {
               return (
                 <div
                   key={service.id}
-                  className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition"
+                  className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition flex flex-col h-full"
                 >
                   {/* Service Header */}
                   <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-gray-900 truncate">
+                    <div className="flex-1 min-w-0 pr-2">
+                      <h3
+                        className="font-semibold text-gray-900 truncate"
+                        title={service.serviceName}
+                      >
                         {service.serviceName}
                       </h3>
                       <p className="text-xs text-gray-500 truncate mt-0.5">
@@ -216,7 +253,7 @@ export default function ServicesPage() {
                       }
                       disabled={deletingId === service.id}
                       className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition disabled:opacity-50"
-                      title="Delete service"
+                      title="Delete service & release quota"
                     >
                       {deletingId === service.id ? (
                         <Loader2 size={16} className="animate-spin" />
@@ -237,9 +274,11 @@ export default function ServicesPage() {
                         className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
                           latestScan.status === "SUCCESS"
                             ? "bg-green-100 text-green-700"
-                            : latestScan.status === "BLOCKED"
+                            : ["FAILED", "FAILED_SECURITY", "BLOCKED"].includes(
+                                latestScan.status
+                              )
                             ? "bg-red-100 text-red-700"
-                            : "bg-gray-100 text-gray-700"
+                            : "bg-blue-50 text-blue-700"
                         }`}
                       >
                         <Shield size={10} />
@@ -249,55 +288,53 @@ export default function ServicesPage() {
                   </div>
 
                   {/* Vulnerability Summary */}
-                  {latestScan && totalVulns > 0 && (
-                    <div className="grid grid-cols-4 gap-2 mb-4">
-                      <div className="text-center p-2 bg-red-50 rounded">
-                        <div className="text-lg font-bold text-red-600">
-                          {latestScan.vulnCritical}
+                  <div className="flex-grow">
+                    {latestScan && totalVulns > 0 ? (
+                      <div className="grid grid-cols-4 gap-2 mb-4">
+                        <div className="text-center p-2 bg-red-50 rounded">
+                          <div className="text-lg font-bold text-red-600">
+                            {latestScan.vulnCritical}
+                          </div>
+                          <div className="text-[10px] text-red-500">CRIT</div>
                         </div>
-                        <div className="text-[10px] text-red-500">CRITICAL</div>
+                        <div className="text-center p-2 bg-orange-50 rounded">
+                          <div className="text-lg font-bold text-orange-600">
+                            {latestScan.vulnHigh}
+                          </div>
+                          <div className="text-[10px] text-orange-500">
+                            HIGH
+                          </div>
+                        </div>
+                        <div className="text-center p-2 bg-yellow-50 rounded">
+                          <div className="text-lg font-bold text-yellow-600">
+                            {latestScan.vulnMedium}
+                          </div>
+                          <div className="text-[10px] text-yellow-500">MED</div>
+                        </div>
+                        <div className="text-center p-2 bg-blue-50 rounded">
+                          <div className="text-lg font-bold text-blue-600">
+                            {latestScan.vulnLow}
+                          </div>
+                          <div className="text-[10px] text-blue-500">LOW</div>
+                        </div>
                       </div>
-                      <div className="text-center p-2 bg-orange-50 rounded">
-                        <div className="text-lg font-bold text-orange-600">
-                          {latestScan.vulnHigh}
-                        </div>
-                        <div className="text-[10px] text-orange-500">HIGH</div>
+                    ) : latestScan && totalVulns === 0 ? (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4 text-center">
+                        <span className="text-green-700 text-sm font-medium">
+                          ✅ Safe
+                        </span>
                       </div>
-                      <div className="text-center p-2 bg-yellow-50 rounded">
-                        <div className="text-lg font-bold text-yellow-600">
-                          {latestScan.vulnMedium}
-                        </div>
-                        <div className="text-[10px] text-yellow-500">
-                          MEDIUM
-                        </div>
+                    ) : (
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4 text-center">
+                        <span className="text-gray-500 text-sm">
+                          Pending...
+                        </span>
                       </div>
-                      <div className="text-center p-2 bg-blue-50 rounded">
-                        <div className="text-lg font-bold text-blue-600">
-                          {latestScan.vulnLow}
-                        </div>
-                        <div className="text-[10px] text-blue-500">LOW</div>
-                      </div>
-                    </div>
-                  )}
-
-                  {latestScan && totalVulns === 0 && (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4 text-center">
-                      <span className="text-green-700 text-sm font-medium">
-                        ✅ No vulnerabilities found
-                      </span>
-                    </div>
-                  )}
-
-                  {!latestScan && (
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4 text-center">
-                      <span className="text-gray-500 text-sm">
-                        No scans yet
-                      </span>
-                    </div>
-                  )}
+                    )}
+                  </div>
 
                   {/* Actions */}
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 mt-auto">
                     <Link
                       href={`/scan/history?serviceId=${service.id}`}
                       className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
@@ -309,7 +346,7 @@ export default function ServicesPage() {
                         href={`/scan/${latestScan.pipelineId}`}
                         className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-100 rounded-lg hover:bg-blue-200 transition"
                       >
-                        <ExternalLink size={14} /> Latest
+                        <ExternalLink size={14} /> Report
                       </Link>
                     )}
                   </div>
