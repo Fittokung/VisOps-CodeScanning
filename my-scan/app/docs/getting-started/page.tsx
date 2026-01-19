@@ -1,3 +1,4 @@
+// my-scan/app/docs/guides/scan-only/page.tsx
 "use client";
 
 import Link from "next/link";

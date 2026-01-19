@@ -8,7 +8,7 @@ export default function ScanOnlyGuidePage() {
   const toc = [
     { title: "Overview", href: "#overview" },
     { title: "Walkthrough", href: "#walkthrough" },
-    { title: "Results", href: "#results" },
+    { title: "Understanding Results", href: "#results" },
   ];
 
   return (
@@ -51,17 +51,13 @@ export default function ScanOnlyGuidePage() {
             </h2>
             <ol className="list-decimal pl-5 space-y-6 text-slate-600 marker:text-slate-900 marker:font-medium">
               <li>
-                <h3 className="text-sm font-bold text-slate-900 inline">
-                  Select Account
-                </h3>
+                <strong className="text-slate-900">Select Account</strong>
                 <p className="text-sm mt-1">
                   เลือก GitHub Account ที่มีสิทธิ์เข้าถึง Repository ที่ต้องการ
                 </p>
               </li>
               <li>
-                <h3 className="text-sm font-bold text-slate-900 inline">
-                  Configure Repository
-                </h3>
+                <strong className="text-slate-900">Configure Repository</strong>
                 <p className="text-sm mt-1">
                   ระบุ Git URL และตั้งชื่อ Service Name
                 </p>
@@ -70,11 +66,10 @@ export default function ScanOnlyGuidePage() {
                 </code>
               </li>
               <li>
-                <h3 className="text-sm font-bold text-slate-900 inline">
-                  Start Scan
-                </h3>
+                <strong className="text-slate-900">Start Scan</strong>
                 <p className="text-sm mt-1">
-                  กดปุ่ม Start Security Scan ระบบจะนำท่านไปยังหน้าผลลัพธ์ทันที
+                  กดปุ่ม <b>Start Security Scan</b>{" "}
+                  ระบบจะนำท่านไปยังหน้าผลลัพธ์ทันที
                 </p>
               </li>
             </ol>
@@ -84,7 +79,7 @@ export default function ScanOnlyGuidePage() {
             <h2 className="text-xl font-semibold text-slate-900 mb-6 pb-2 border-b border-slate-100">
               Understanding Results
             </h2>
-            <div className="space-y-6">
+            <div className="space-y-4">
               <div>
                 <h3 className="font-medium text-slate-900 mb-1">
                   Critical Findings

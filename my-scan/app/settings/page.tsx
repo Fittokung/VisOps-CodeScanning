@@ -10,6 +10,8 @@ import {
   Box, // for Docker icon replacement
   CheckCircle2,
   AlertCircle,
+  Sliders,
+  Key,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
@@ -115,8 +117,8 @@ export default function SettingsPage() {
 
   if (loading)
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="animate-spin text-blue-600" />
+      <div className="w-full h-96 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
       </div>
     );
 
@@ -124,37 +126,46 @@ export default function SettingsPage() {
   const dockerCreds = credentials.filter((c) => c.provider === "DOCKER");
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-4xl mx-auto space-y-8">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-          <p className="text-gray-500 text-sm mt-1">
-            Manage your connected accounts and organizations.
-          </p>
-        </div>
+    <div className="w-full space-y-8 pb-20">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
+          <Sliders className="text-slate-400" /> Settings
+        </h1>
+        <p className="text-gray-500 text-sm mt-1 ml-9">
+          Manage your connected accounts, organizations, and access tokens.
+        </p>
+      </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* GitHub Section */}
-        <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-          <div className="p-6 border-b flex justify-between items-center bg-gray-50/50">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
+          <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
             <div className="flex items-center gap-3">
-              <Github className="w-6 h-6 text-gray-700" />
+              <div className="p-2 bg-gray-100 rounded-lg border border-gray-200">
+                <Github className="w-5 h-5 text-gray-700" />
+              </div>
               <div>
-                <h2 className="font-semibold text-gray-900">GitHub Accounts</h2>
-                <p className="text-xs text-gray-500">
-                  For accessing private repositories
+                <h2 className="font-bold text-gray-900 text-sm">
+                  GitHub Accounts
+                </h2>
+                <p className="text-[11px] text-gray-500">
+                  Access private repositories
                 </p>
               </div>
             </div>
             <button
               onClick={() => openAddModal("GITHUB")}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-black transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gray-900 rounded-lg hover:bg-black transition-colors shadow-sm"
             >
-              <Plus size={16} /> Add GitHub
+              <Plus size={14} /> Add Account
             </button>
           </div>
-          <div className="divide-y">
+
+          <div className="divide-y divide-slate-100 flex-1">
             {githubCreds.length === 0 ? (
-              <div className="p-8 text-center text-gray-500 text-sm">
+              <div className="p-12 text-center text-gray-400 text-sm flex flex-col items-center gap-2">
+                <Github size={32} className="opacity-20" />
                 No GitHub accounts connected.
               </div>
             ) : (
@@ -170,30 +181,34 @@ export default function SettingsPage() {
         </div>
 
         {/* Docker Section */}
-        <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-          <div className="p-6 border-b flex justify-between items-center bg-gray-50/50">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
+          <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
             <div className="flex items-center gap-3">
-              <Box className="w-6 h-6 text-blue-600" />
+              <div className="p-2 bg-blue-50 rounded-lg border border-blue-100">
+                <Box className="w-5 h-5 text-blue-600" />
+              </div>
               <div>
-                <h2 className="font-semibold text-gray-900">
+                <h2 className="font-bold text-gray-900 text-sm">
                   Docker Registries
                 </h2>
-                <p className="text-xs text-gray-500">
-                  For pushing/pulling images (Docker Hub)
+                <p className="text-[11px] text-gray-500">
+                  Push & pull container images
                 </p>
               </div>
             </div>
             <button
               onClick={() => openAddModal("DOCKER")}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
             >
-              <Plus size={16} /> Add Docker
+              <Plus size={14} /> Add Registry
             </button>
           </div>
-          <div className="divide-y">
+
+          <div className="divide-y divide-slate-100 flex-1">
             {dockerCreds.length === 0 ? (
-              <div className="p-8 text-center text-gray-500 text-sm">
-                No Docker accounts connected.
+              <div className="p-12 text-center text-gray-400 text-sm flex flex-col items-center gap-2">
+                <Box size={32} className="opacity-20" />
+                No Docker registries connected.
               </div>
             ) : (
               dockerCreds.map((cred) => (
@@ -210,27 +225,46 @@ export default function SettingsPage() {
 
       {/* Modal Form */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
-            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-              {modalType === "GITHUB" ? <Github /> : <Box />}
-              Add {modalType === "GITHUB" ? "GitHub" : "Docker"} Account
-            </h3>
-            <form onSubmit={handleSave} className="space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full animate-in zoom-in-95 duration-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
+              <div
+                className={`p-2 rounded-lg ${
+                  modalType === "GITHUB" ? "bg-gray-100" : "bg-blue-50"
+                }`}
+              >
+                {modalType === "GITHUB" ? (
+                  <Github size={20} />
+                ) : (
+                  <Box size={20} className="text-blue-600" />
+                )}
+              </div>
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">
+                <h3 className="font-bold text-gray-900">
+                  Add {modalType === "GITHUB" ? "GitHub" : "Docker"} Account
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Enter your credentials below
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSave} className="p-6 space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase mb-1.5 block">
                   Account Name (Alias)
                 </label>
                 <input
                   required
                   placeholder="e.g. Personal, Company Org"
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
                 />
               </div>
+
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">
+                <label className="text-xs font-semibold text-gray-500 uppercase mb-1.5 block">
                   {modalType === "GITHUB"
                     ? "GitHub Username"
                     : "Docker ID / Org Name"}
@@ -240,50 +274,64 @@ export default function SettingsPage() {
                   placeholder={
                     modalType === "GITHUB" ? "octocat" : "dockeruser"
                   }
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
                   value={formUsername}
                   onChange={(e) => setFormUsername(e.target.value)}
                 />
               </div>
+
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">
-                  Access Token (PAT)
+                <label className="text-xs font-semibold text-gray-500 uppercase mb-1.5 flex items-center gap-1">
+                  Access Token (PAT){" "}
+                  <Key size={12} className="text-slate-400" />
                 </label>
                 <input
                   required
                   type="password"
                   placeholder="ghp_... or dckr_..."
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm font-mono"
                   value={formToken}
                   onChange={(e) => setFormToken(e.target.value)}
                 />
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Use a generated Personal Access Token, not your password.
+                </p>
               </div>
+
               <div className="flex items-center gap-2 pt-2">
                 <input
                   type="checkbox"
                   id="isDefault"
                   checked={formIsDefault}
                   onChange={(e) => setFormIsDefault(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded"
+                  className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
                 />
-                <label htmlFor="isDefault" className="text-sm text-gray-600">
+                <label
+                  htmlFor="isDefault"
+                  className="text-sm text-gray-700 cursor-pointer select-none"
+                >
                   Set as default account
                 </label>
               </div>
-              <div className="flex gap-3 pt-4">
+
+              <div className="flex gap-3 pt-4 border-t border-slate-100 mt-2">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
+                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex justify-center"
+                  className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex justify-center items-center gap-2 transition-colors shadow-sm"
                 >
-                  {saving ? <Loader2 className="animate-spin" /> : "Save"}
+                  {saving ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    "Save Credentials"
+                  )}
                 </button>
               </div>
             </form>
@@ -302,35 +350,37 @@ function CredentialItem({
   onDelete: (id: string) => void;
 }) {
   return (
-    <div className="p-4 flex items-center justify-between group hover:bg-gray-50 transition">
+    <div className="p-4 flex items-center justify-between group hover:bg-slate-50 transition-colors">
       <div className="flex items-center gap-4">
         <div
-          className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${
-            cred.provider === "GITHUB" ? "bg-gray-800" : "bg-blue-500"
+          className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shadow-sm ${
+            cred.provider === "GITHUB" ? "bg-gray-800" : "bg-blue-600"
           }`}
         >
           {cred.username.charAt(0).toUpperCase()}
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-gray-900">{cred.name}</span>
+            <span className="font-semibold text-gray-900 text-sm">
+              {cred.name}
+            </span>
             {cred.isDefault && (
-              <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium border border-green-200">
-                DEFAULT
+              <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold border border-emerald-100 flex items-center gap-0.5">
+                <CheckCircle2 size={10} /> DEFAULT
               </span>
             )}
           </div>
-          <div className="text-sm text-gray-500 font-mono">
+          <div className="text-xs text-gray-500 font-mono mt-0.5">
             @{cred.username}
           </div>
         </div>
       </div>
       <button
         onClick={() => onDelete(cred.id)}
-        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
         title="Remove Account"
       >
-        <Trash2 size={18} />
+        <Trash2 size={16} />
       </button>
     </div>
   );

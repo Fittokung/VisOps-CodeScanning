@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ExternalLink, ChevronRight } from "lucide-react";
+import { ChevronRight, ExternalLink } from "lucide-react";
 import OnThisPage from "@/components/OnThisPage";
 
 export default function ScannerDocsPage() {
@@ -14,7 +14,7 @@ export default function ScannerDocsPage() {
       logo: "/logos/gitleaks.png",
       link: "https://gitleaks.io",
       description:
-        "เครื่องมือป้องกันความปลอดภัยขั้นแรก ทำหน้าที่ตรวจสอบ Git Commit History เพื่อหารหัสผ่าน (Secrets), API Keys และ Tokens",
+        "เครื่องมือป้องกันความปลอดภัยขั้นแรก ทำหน้าที่ตรวจสอบ Git Commit History เพื่อหารหัสผ่าน (Secrets), API Keys และ Tokens ที่เผลอหลุดเข้าไปใน Source Code",
       scans: [
         "Cloud Keys (AWS, GCP, Azure)",
         "Database Credentials",
@@ -22,9 +22,9 @@ export default function ScannerDocsPage() {
         "API Tokens",
       ],
       limitations: [
-        "ไม่สามารถตรวจจับ Encrypted Secrets",
-        "ไม่สแกน Server Env Variables",
-        "ไม่สแกน Binary Files",
+        "ไม่สามารถตรวจจับ Secrets ที่ถูกเข้ารหัส (Encrypted)",
+        "ไม่สแกน Environment Variables บน Server",
+        "ไฟล์ Binary หรือรูปภาพจะไม่ถูกสแกน",
       ],
     },
     {
@@ -34,7 +34,7 @@ export default function ScannerDocsPage() {
       logo: "/logos/semgrep.png",
       link: "https://semgrep.dev",
       description:
-        "เครื่องมือวิเคราะห์โครงสร้างโค้ด (Static Analysis) เพื่อหาช่องโหว่ทางความปลอดภัยและ Logic Errors",
+        "เครื่องมือวิเคราะห์โครงสร้างโค้ด (Static Analysis) เพื่อหาช่องโหว่ทางความปลอดภัยและ Logic Errors โดยเข้าใจ Syntax ของภาษาโปรแกรม",
       scans: [
         "OWASP Top 10",
         "Insecure Configuration",
@@ -42,19 +42,19 @@ export default function ScannerDocsPage() {
         "Business Logic Flaws",
       ],
       limitations: [
-        "ไม่ตรวจจับ Runtime Errors",
-        "Cross-file analysis มีจำกัด",
+        "ไม่สามารถตรวจจับ Runtime Errors",
+        "การวิเคราะห์ข้ามไฟล์มีข้อจำกัด",
         "ไม่ตรวจสอบ Network Infrastructure",
       ],
     },
     {
       id: "trivy",
       name: "Trivy",
-      version: "v0.53.0",
+      version: "0.53.0",
       logo: "/logos/trivy.png",
       link: "https://trivy.dev",
       description:
-        "เครื่องมือสแกนความปลอดภัยสำหรับ Cloud Native ครอบคลุมทั้ง Docker Image, File System และ Dependencies",
+        "เครื่องมือสแกนความปลอดภัยสำหรับ Cloud Native ครอบคลุมทั้ง Docker Image, File System และ Dependencies เพื่อหาช่องโหว่ (CVEs)",
       scans: [
         "OS Package Vulnerabilities",
         "Application Dependencies",
@@ -64,16 +64,12 @@ export default function ScannerDocsPage() {
       limitations: [
         "ไม่ตรวจ Logic ของ Custom Code",
         "ไม่เจอ Zero-day Vulnerabilities",
-        "ต้องต่อ Internet",
+        "ต้องต่อ Internet เพื่ออัปเดตฐานข้อมูล",
       ],
     },
   ];
 
-  const toc = [
-    { title: "Gitleaks", href: "#gitleaks" },
-    { title: "Semgrep", href: "#semgrep" },
-    { title: "Trivy", href: "#trivy" },
-  ];
+  const toc = tools.map((t) => ({ title: t.name, href: `#${t.id}` }));
 
   return (
     <div className="px-6 lg:px-8">
@@ -97,13 +93,13 @@ export default function ScannerDocsPage() {
           </h1>
           <p className="text-base text-slate-600 mb-10 leading-7">
             รายละเอียดเชิงเทคนิค ขอบเขตการทำงาน
-            และข้อจำกัดของเครื่องมือสแกนความปลอดภัย
+            และข้อจำกัดของเครื่องมือสแกนความปลอดภัยที่ใช้ในระบบ Secure Pipeline
           </p>
 
           <div className="space-y-16">
             {tools.map((tool) => (
               <section key={tool.id} id={tool.id} className="scroll-mt-24">
-                <div className="flex items-center gap-4 mb-4 pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-4 mb-4 pb-3 border-b border-slate-100">
                   <div className="relative w-8 h-8 shrink-0">
                     <Image
                       src={tool.logo}

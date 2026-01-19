@@ -1,3 +1,4 @@
+// components/ScanForm.tsx
 "use client";
 
 import React, { useState, useEffect, Suspense, useRef } from "react";
@@ -17,13 +18,14 @@ import {
   ChevronDown,
   Check,
   Plus,
+  Tag,
 } from "lucide-react";
 
 type Props = {
   buildMode: boolean;
 };
 
-// --- Helper: Tooltip ---
+// --- Helper Components ---
 const InfoTooltip = ({ text }: { text: string }) => (
   <div className="group relative inline-flex items-center ml-1.5">
     <HelpCircle
@@ -37,7 +39,6 @@ const InfoTooltip = ({ text }: { text: string }) => (
   </div>
 );
 
-// --- Component: Account Selector (Compact Horizontal) ---
 interface AccountOption {
   id: string;
   name: string;
@@ -84,7 +85,6 @@ const AccountSelector = ({
       <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">
         {label}
       </label>
-
       <button
         type="button"
         onClick={() => !isLoading && setIsOpen(!isOpen)}
@@ -119,8 +119,6 @@ const AccountSelector = ({
           <ChevronDown size={14} className="text-slate-400 shrink-0" />
         </div>
       </button>
-
-      {/* Dropdown Menu */}
       {isOpen && (
         <div className="absolute z-50 mt-1 w-full bg-white border border-slate-100 rounded-lg shadow-xl max-h-60 overflow-y-auto py-1 animate-in fade-in zoom-in-95 duration-100">
           {options.length > 0 ? (
@@ -193,7 +191,7 @@ function ScanFormContent({ buildMode }: Props) {
   const [buildContext, setBuildContext] = useState(paramContext);
 
   const [imageName, setImageName] = useState("");
-  const [imageTag, setImageTag] = useState("latest");
+  const [imageTag, setImageTag] = useState("");
   const [trivyScanMode, setTrivyScanMode] = useState<"fast" | "full">("fast");
 
   const [useCustomDockerfile, setUseCustomDockerfile] = useState(false);
@@ -265,7 +263,7 @@ function ScanFormContent({ buildMode }: Props) {
         body: JSON.stringify({
           serviceId: createData.serviceId,
           scanMode: buildMode ? "SCAN_AND_BUILD" : "SCAN_ONLY",
-          imageTag: imageTag || "latest",
+          imageTag: imageTag || (buildMode ? "latest" : `audit-${Date.now()}`),
           trivyScanMode,
         }),
       });
@@ -286,12 +284,11 @@ function ScanFormContent({ buildMode }: Props) {
   return (
     <>
       <div className="flex justify-center px-4 2xl:px-0">
-        {/* ✅ Container กว้างพิเศษ (max-w-7xl) เพื่อให้ออกด้านข้างสุดๆ */}
         <form
           onSubmit={onSubmit}
           className="w-full max-w-7xl bg-white rounded-xl border border-slate-200 shadow-sm mt-6 overflow-hidden"
         >
-          {/* Compact Header */}
+          {/* Header */}
           <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
             <div className="flex items-center gap-3">
               <div
@@ -314,15 +311,11 @@ function ScanFormContent({ buildMode }: Props) {
                 </p>
               </div>
             </div>
-
-            {/* Quick Actions / Status could go here */}
           </div>
 
-          {/* Main Layout: 2 Columns */}
           <div className="grid grid-cols-1 lg:grid-cols-2">
-            {/* --- LEFT COLUMN: Source & Repo (Border Right) --- */}
+            {/* LEFT COLUMN */}
             <div className="p-6 lg:border-r border-slate-100 space-y-6">
-              {/* Section 1: Identity */}
               <div>
                 <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2 mb-4">
                   <Lock size={14} className="text-blue-500" /> IDENTITY & ACCESS
@@ -351,13 +344,11 @@ function ScanFormContent({ buildMode }: Props) {
 
               <div className="w-full h-px bg-slate-100" />
 
-              {/* Section 2: Repository */}
               <div>
                 <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2 mb-4">
                   <FolderTree size={14} className="text-blue-500" /> REPOSITORY
                   DETAILS
                 </h3>
-
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">
@@ -372,7 +363,6 @@ function ScanFormContent({ buildMode }: Props) {
                       onChange={(e) => setRepoUrl(e.target.value)}
                     />
                   </div>
-
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">
@@ -399,7 +389,6 @@ function ScanFormContent({ buildMode }: Props) {
                       />
                     </div>
                   </div>
-
                   <div className="flex items-center gap-2">
                     <input
                       type="checkbox"
@@ -419,7 +408,7 @@ function ScanFormContent({ buildMode }: Props) {
               </div>
             </div>
 
-            {/* --- RIGHT COLUMN: Build Config (Background Color) --- */}
+            {/* RIGHT COLUMN */}
             <div className="bg-slate-50/50 p-6 flex flex-col h-full">
               {buildMode ? (
                 <>
@@ -427,8 +416,6 @@ function ScanFormContent({ buildMode }: Props) {
                     <Server size={14} className="text-blue-500" /> BUILD
                     CONFIGURATION
                   </h3>
-
-                  {/* ✅ Target Registry Preview - Moved Top & Full Width */}
                   <div className="bg-white border border-blue-200 rounded-lg p-4 mb-6 shadow-sm">
                     <div className="text-[10px] font-bold text-blue-500 uppercase mb-1 tracking-wide">
                       Target Registry Preview
@@ -447,11 +434,10 @@ function ScanFormContent({ buildMode }: Props) {
                       </span>
                       <span>:</span>
                       <span className="bg-amber-50 px-1 rounded border border-amber-100 text-amber-700">
-                        {imageTag}
+                        {imageTag || "latest"}
                       </span>
                     </div>
                   </div>
-
                   <div className="grid grid-cols-12 gap-4 mb-6">
                     <div className="col-span-7">
                       <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">
@@ -477,7 +463,6 @@ function ScanFormContent({ buildMode }: Props) {
                       />
                     </div>
                   </div>
-
                   <div className="space-y-4 mb-auto">
                     <div>
                       <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">
@@ -490,13 +475,12 @@ function ScanFormContent({ buildMode }: Props) {
                         onChange={(e) => setBuildContext(e.target.value)}
                       />
                     </div>
-
                     <button
                       type="button"
                       onClick={() => setIsEditorOpen(true)}
                       className="w-full py-2 text-xs text-slate-600 hover:text-blue-600 font-medium flex items-center justify-center gap-2 transition-colors bg-white border border-slate-200 hover:border-blue-300 rounded-lg"
                     >
-                      <FileText size={14} />
+                      <FileText size={14} />{" "}
                       {useCustomDockerfile
                         ? "Edit Custom Dockerfile"
                         : "Customize Dockerfile"}
@@ -509,6 +493,24 @@ function ScanFormContent({ buildMode }: Props) {
                     <ShieldCheck size={14} className="text-purple-500" />{" "}
                     SCANNER SETTINGS
                   </h3>
+
+                  {/* ✅ Added Version Label for Scan Only */}
+                  <div className="mb-6">
+                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase flex items-center gap-1">
+                      <Tag size={12} /> Version Label
+                    </label>
+                    <input
+                      placeholder="e.g. v1.0-audit, release-candidate"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
+                      value={imageTag}
+                      onChange={(e) => setImageTag(e.target.value)}
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      This label helps identify this audit in comparison
+                      reports.
+                    </p>
+                  </div>
+
                   <div className="mb-auto">
                     <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">
                       Scanner Level
@@ -527,7 +529,6 @@ function ScanFormContent({ buildMode }: Props) {
                 </>
               )}
 
-              {/* Start Button Area */}
               <div className="mt-6 pt-6 border-t border-slate-200">
                 <button
                   type="submit"
@@ -547,11 +548,11 @@ function ScanFormContent({ buildMode }: Props) {
                     </>
                   ) : buildMode ? (
                     <>
-                      Start Build Pipeline <Server size={18} />
+                      <Server size={18} /> Start Build Pipeline
                     </>
                   ) : (
                     <>
-                      Start Scan <ShieldCheck size={18} />
+                      <ShieldCheck size={18} /> Start Scan
                     </>
                   )}
                 </button>
@@ -561,7 +562,6 @@ function ScanFormContent({ buildMode }: Props) {
         </form>
       </div>
 
-      {/* Editor Modal (Same as before) */}
       {buildMode && isEditorOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-4xl h-[80vh] flex flex-col shadow-2xl overflow-hidden">

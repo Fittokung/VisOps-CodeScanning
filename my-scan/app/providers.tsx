@@ -3,42 +3,36 @@
 
 import { SessionProvider, signOut, useSession } from "next-auth/react";
 import { useEffect, useRef, useCallback } from "react";
+import { usePathname } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import Sidebar from "@/components/Sidebar";
 
 const IDLE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 
-function IdleTimeoutHandler({ children }: { children: React.ReactNode }) {
+function AppLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
+  const pathname = usePathname();
+
+  // Logic เดิม: Timeout & Active Scan check
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
 
   const resetTimeout = useCallback(() => {
     lastActivityRef.current = Date.now();
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-
-    // Only set timeout if user is authenticated
     if (status === "authenticated") {
       timeoutRef.current = setTimeout(async () => {
-        // Check if there are active scans before logging out
         try {
           const response = await fetch("/api/scan/status/active");
           const data = await response.json();
-
           if (data.hasActiveScans) {
-            // Extend session if there are active scans
-            console.log("Active scans detected, extending session...");
             resetTimeout();
             return;
           }
         } catch (error) {
-          console.error("Failed to check active scans:", error);
+          console.error("Failed check", error);
         }
-
-        // Log out user due to inactivity
-        console.log("Session timeout due to inactivity");
         signOut({ callbackUrl: "/login?reason=timeout" });
       }, IDLE_TIMEOUT_MS);
     }
@@ -46,9 +40,7 @@ function IdleTimeoutHandler({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (status !== "authenticated") return;
-
-    // Events that indicate user activity
-    const activityEvents = [
+    const events = [
       "mousedown",
       "mousemove",
       "keydown",
@@ -56,43 +48,65 @@ function IdleTimeoutHandler({ children }: { children: React.ReactNode }) {
       "touchstart",
       "click",
     ];
-
     const handleActivity = () => {
-      // Throttle activity detection to every 30 seconds
-      if (Date.now() - lastActivityRef.current > 30000) {
-        resetTimeout();
-      }
+      if (Date.now() - lastActivityRef.current > 30000) resetTimeout();
     };
-
-    // Add event listeners
-    activityEvents.forEach((event) => {
-      document.addEventListener(event, handleActivity, { passive: true });
-    });
-
-    // Initial timeout setup
+    events.forEach((event) =>
+      document.addEventListener(event, handleActivity, { passive: true })
+    );
     resetTimeout();
-
-    // Cleanup
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      activityEvents.forEach((event) => {
-        document.removeEventListener(event, handleActivity);
-      });
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      events.forEach((event) =>
+        document.removeEventListener(event, handleActivity)
+      );
     };
   }, [status, resetTimeout]);
 
-  return <>{children}</>;
+  // --- Layout Logic ---
+
+  // หน้าที่ไม่แสดง Layout หลัก (Login, Setup, Landing Page for guests)
+  const isPublicOrAuthPage =
+    pathname === "/login" ||
+    pathname === "/setup" ||
+    pathname === "/pending" ||
+    (pathname === "/" && status === "unauthenticated");
+
+  if (status === "loading") return null; // หรือใส่ Loading Spinner ตรงนี้
+
+  // Case 1: หน้า Public หรือยังไม่ Login -> แสดงเต็มจอปกติ
+  if (isPublicOrAuthPage || !session) {
+    return <>{children}</>;
+  }
+
+  // Case 2: Authenticated User -> แสดง Sidebar + Navbar Layout
+  const user = session.user as any;
+  const isAdmin = user?.role === "admin";
+
+  return (
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
+      {/* 1. Left Sidebar */}
+      <Sidebar isAdmin={isAdmin} />
+
+      {/* 2. Main Content Wrapper */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Top Navbar (User Profile Only) */}
+        <Navbar />
+
+        {/* Page Content */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          {/* ✅ แก้ไขตรงนี้: ลบ max-w-7xl mx-auto ออก ใช้ w-full แทน */}
+          <div className="w-full max-w-full h-full">{children}</div>
+        </main>
+      </div>
+    </div>
+  );
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
-      <IdleTimeoutHandler>
-        <Navbar />
-        <main>{children}</main>
-      </IdleTimeoutHandler>
+      <AppLayout>{children}</AppLayout>
     </SessionProvider>
   );
 }

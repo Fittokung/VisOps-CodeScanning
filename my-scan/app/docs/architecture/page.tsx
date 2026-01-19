@@ -37,9 +37,7 @@ export default function ArchitecturePage() {
             <h2 className="text-xl font-semibold text-slate-900 mb-6 pb-2 border-b border-slate-100">
               Pipeline Data Flow
             </h2>
-
             <div className="space-y-4">
-              {/* Step 1 */}
               <div className="flex gap-4 p-4 border border-slate-200 rounded-lg bg-white">
                 <div className="font-mono text-slate-400 text-sm">01</div>
                 <div>
@@ -49,61 +47,52 @@ export default function ArchitecturePage() {
                   </p>
                 </div>
               </div>
-
-              {/* Connector */}
-              <div className="flex justify-center py-2">
-                <div className="w-px h-4 bg-slate-300"></div>
+              <div className="flex justify-center py-1">
+                <div className="w-px h-4 bg-slate-200"></div>
               </div>
-
-              {/* Step 2 */}
               <div className="flex gap-4 p-4 border border-slate-200 rounded-lg bg-white">
                 <div className="font-mono text-slate-400 text-sm">02</div>
                 <div>
                   <h3 className="font-medium text-slate-900">Orchestrator</h3>
                   <p className="text-sm text-slate-600">
-                    Clone source code และจัดเตรียม Environment สำหรับการสแกน
+                    Clone source code และรัน Scanners แบบขนาน (Parallel)
                   </p>
                 </div>
               </div>
-
-              {/* Connector */}
-              <div className="flex justify-center py-2">
-                <div className="w-px h-4 bg-slate-300"></div>
+              <div className="flex justify-center py-1">
+                <div className="w-px h-4 bg-slate-200"></div>
               </div>
-
-              {/* Step 3 */}
               <div className="flex gap-4 p-4 border border-slate-200 rounded-lg bg-white">
                 <div className="font-mono text-slate-400 text-sm">03</div>
                 <div>
                   <h3 className="font-medium text-slate-900">
                     Scanners Execution
                   </h3>
-                  <div className="flex gap-2 mt-2">
-                    <span className="px-2 py-1 bg-slate-100 text-slate-700 text-xs rounded border border-slate-200">
+                  <p className="text-sm text-slate-600 mb-2">
+                    เรียกใช้เครื่องมือตาม Config:
+                  </p>
+                  <div className="flex gap-2">
+                    <span className="px-2 py-0.5 bg-slate-50 text-slate-600 text-xs border border-slate-100 rounded">
                       Gitleaks
                     </span>
-                    <span className="px-2 py-1 bg-slate-100 text-slate-700 text-xs rounded border border-slate-200">
+                    <span className="px-2 py-0.5 bg-slate-50 text-slate-600 text-xs border border-slate-100 rounded">
                       Semgrep
                     </span>
-                    <span className="px-2 py-1 bg-slate-100 text-slate-700 text-xs rounded border border-slate-200">
+                    <span className="px-2 py-0.5 bg-slate-50 text-slate-600 text-xs border border-slate-100 rounded">
                       Trivy
                     </span>
                   </div>
                 </div>
               </div>
-
-              {/* Connector */}
-              <div className="flex justify-center py-2">
-                <div className="w-px h-4 bg-slate-300"></div>
+              <div className="flex justify-center py-1">
+                <div className="w-px h-4 bg-slate-200"></div>
               </div>
-
-              {/* Step 4 */}
               <div className="flex gap-4 p-4 border border-slate-200 rounded-lg bg-white">
                 <div className="font-mono text-slate-400 text-sm">04</div>
                 <div>
                   <h3 className="font-medium text-slate-900">Reporting</h3>
                   <p className="text-sm text-slate-600">
-                    รวบรวมผลลัพธ์ บันทึกลง Database และสร้างไฟล์รายงาน
+                    บันทึกผลลง Database และสร้าง JSON Report
                   </p>
                 </div>
               </div>
