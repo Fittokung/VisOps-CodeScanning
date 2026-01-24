@@ -456,7 +456,10 @@ export default function ProjectDashboard({ userEmail }: { userEmail: string }) {
       {/* Add Service Dialog */}
       {addServiceDialogOpen && (
         <AddServiceDialog
-          projectId={addServiceDialogOpen}
+          groupId={addServiceDialogOpen}
+          repoUrl={
+            groups.find((g) => g.id === addServiceDialogOpen)?.repoUrl || ""
+          }
           onClose={() => {
             setAddServiceDialogOpen(null);
             // Refresh the groups list

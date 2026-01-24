@@ -50,3 +50,4 @@ next-env.d.ts
 /prisma/migrations
 /prisma/migrations/*
 
+*.DS_Store

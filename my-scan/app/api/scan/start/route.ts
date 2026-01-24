@@ -50,31 +50,45 @@ export async function POST(req: Request) {
       );
     }
 
-    // Get user with encrypted tokens
+    // Get user with encrypted tokens (Updated to include new fields)
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
         id: true,
+        // Old fields
         githubPAT: true,
         githubUsername: true,
         dockerToken: true,
         dockerUsername: true,
+        // New fields (Compatible with Settings page)
+        defaultGitToken: true,
+        defaultGitUser: true,
+        defaultDockerToken: true,
+        defaultDockerUser: true,
+        // Org settings
         isDockerOrganization: true,
         dockerOrgName: true,
         isSetupComplete: true,
       },
     });
 
-    if (!user || !user.isSetupComplete) {
-      return NextResponse.json(
-        { error: "Please complete setup first at /setup" },
-        { status: 400 }
-      );
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    if (!user.githubPAT || !user.dockerToken) {
+    // Determine which credentials to use (Prioritize new fields, fallback to old)
+    const activeGitToken = user.defaultGitToken || user.githubPAT;
+    const activeGitUser = user.defaultGitUser || user.githubUsername;
+    const activeDockerToken = user.defaultDockerToken || user.dockerToken;
+    const activeDockerUser = user.defaultDockerUser || user.dockerUsername;
+
+    // Check credentials existence using the resolved values
+    if (!activeGitToken || !activeDockerToken) {
       return NextResponse.json(
-        { error: "Missing GitHub or Docker credentials" },
+        {
+          error:
+            "Missing GitHub or Docker credentials. Please configure them in Settings.",
+        },
         { status: 400 }
       );
     }
@@ -190,9 +204,15 @@ export async function POST(req: Request) {
       projectGroupId = newGroup.id;
     }
 
-    // Decrypt user tokens
-    const githubToken = decrypt(user.githubPAT);
-    const dockerToken = decrypt(user.dockerToken);
+    // Decrypt user tokens (Using the resolved active tokens)
+    const githubToken = decrypt(activeGitToken);
+    const dockerToken = decrypt(activeDockerToken);
+
+    const frontendUserName =
+      (session.user as any).name ||
+      activeGitUser ||
+      (session.user as any).email ||
+      "Unknown User";
 
     // Prepare GitLab pipeline variables
     const variables = [
@@ -200,9 +220,10 @@ export async function POST(req: Request) {
       { key: "BUILD_CONTEXT", value: finalConfig.contextPath },
       { key: "USER_TAG", value: imageTag },
       { key: "PROJECT_NAME", value: finalConfig.imageName },
+      { key: "FRONTEND_USER", value: frontendUserName },
 
       // User credentials (decrypted)
-      { key: "GIT_USERNAME", value: user.githubUsername || "" },
+      { key: "GIT_USERNAME", value: activeGitUser || "" },
       { key: "GIT_TOKEN", value: githubToken },
       // Docker credentials - use Organization name if configured
       {
@@ -210,7 +231,7 @@ export async function POST(req: Request) {
         value:
           user.isDockerOrganization && user.dockerOrgName
             ? user.dockerOrgName
-            : user.dockerUsername || "",
+            : activeDockerUser || "",
       },
       { key: "DOCKER_PASSWORD", value: dockerToken },
 
@@ -279,12 +300,11 @@ export async function POST(req: Request) {
     }
 
     // Create scan history record
-    // Note: projectId is now guaranteed to exist (either from existing service or newly created)
     const scanHistory = await prisma.scanHistory.create({
       data: {
         serviceId: projectId!, // Non-null assertion safe here
         scanMode: scanMode,
-        scanId: process.env.GITLAB_PROJECT_ID!, // ใช้ GitLab Project ID จริงแทน
+        scanId: process.env.GITLAB_PROJECT_ID!,
         pipelineId: pipelineData.id.toString(),
         imageTag: imageTag,
         status: "QUEUED",

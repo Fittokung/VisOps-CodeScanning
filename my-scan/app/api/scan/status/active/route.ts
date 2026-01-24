@@ -1,25 +1,28 @@
 // app/api/scan/status/active/route.ts
-/**
- * Get active scans for real-time polling
- * Extends session timeout if there are active scans
- */
-
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
+
+// บังคับให้เป็น Dynamic route เสมอ (สำคัญสำหรับ API ที่มีการ Polling)
+export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    // ใช้ getToken แทน getServerSession เพื่อเลี่ยง Error headers() ใน Next.js 15
+    // getToken จะอ่านค่าจาก Request โดยตรง ไม่ผ่าน Global headers store
+    const token = await getToken({
+      req: req as any,
+      secret: process.env.NEXTAUTH_SECRET,
+    });
 
-    if (!session?.user) {
+    // ตรวจสอบว่ามี Token และมี ID หรือไม่
+    // (อิงตาม auth.ts ของคุณที่ map token.id ไว้)
+    if (!token || !token.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const userId = (session.user as any).id;
+    const userId = token.id as string;
 
-    // Get all active scans for user's projects
     const activeScans = await prisma.scanHistory.findMany({
       where: {
         service: {
@@ -53,12 +56,11 @@ export async function GET(req: Request) {
       },
     });
 
-    // Response includes flag to extend session if there are active scans
     return NextResponse.json({
       success: true,
       activeScans,
       hasActiveScans: activeScans.length > 0,
-      extendSession: activeScans.length > 0, // Signal to frontend to keep session alive
+      extendSession: activeScans.length > 0,
     });
   } catch (error: any) {
     console.error("[Active Scans Error]:", error);

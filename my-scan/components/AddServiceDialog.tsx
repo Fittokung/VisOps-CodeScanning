@@ -3,10 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, X, Loader2, AlertCircle, Package } from "lucide-react";
+import SimpleTooltip from "@/components/ui/Tooltip"; // ✅ Import Tooltip
 
 interface AddServiceDialogProps {
   groupId: string;
   repoUrl: string;
+  onClose?: () => void;
+  iconOnly?: boolean;
 }
 
 // Helper: Extract repo name from URL
@@ -34,6 +37,8 @@ const generateImageName = (repoUrl: string, contextPath: string): string => {
 export default function AddServiceDialog({
   groupId,
   repoUrl,
+  onClose,
+  iconOnly = false,
 }: AddServiceDialogProps) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
@@ -91,6 +96,9 @@ export default function AddServiceDialog({
 
       const { pipelineId } = await startScanRes.json();
 
+      // Call onClose callback if provided
+      onClose?.();
+
       // Step 3: Redirect to scan page
       router.push(`/scan/${pipelineId}`);
     } catch (err) {
@@ -107,14 +115,13 @@ export default function AddServiceDialog({
       setContextPath(".");
       setImageName("");
       setError(null);
+      onClose?.();
     }
   };
 
-  // Auto-generate image name when contextPath changes
   const handleContextPathChange = (value: string) => {
     setContextPath(value);
     if (!imageName) {
-      // Auto-generate if user hasn't set custom name
       const generated = generateImageName(repoUrl, value);
       setImageName(generated);
     }
@@ -122,14 +129,25 @@ export default function AddServiceDialog({
 
   return (
     <>
-      {/* Trigger Button */}
-      <button
-        onClick={() => setIsOpen(true)}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition text-xs font-medium shadow-sm"
-      >
-        <Plus className="w-3.5 h-3.5" />
-        Add Service
-      </button>
+      {/* ✅ Trigger Button Logic with Tooltip */}
+      {iconOnly ? (
+        <SimpleTooltip content="Add New Service">
+          <button
+            onClick={() => setIsOpen(true)}
+            className="text-slate-400 hover:text-blue-600 p-1.5 rounded hover:bg-blue-50 transition-colors"
+          >
+            <Plus size={16} />
+          </button>
+        </SimpleTooltip>
+      ) : (
+        <button
+          onClick={() => setIsOpen(true)}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition text-xs font-medium shadow-sm"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Add Service
+        </button>
+      )}
 
       {/* Modal Overlay */}
       {isOpen && (

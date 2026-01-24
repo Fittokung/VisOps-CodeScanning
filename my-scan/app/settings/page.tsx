@@ -1,239 +1,387 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Save, Loader2, CheckCircle, Lock } from "lucide-react";
+import {
+  Save,
+  Loader2,
+  Trash2,
+  Plus,
+  Github,
+  Box, // for Docker icon replacement
+  CheckCircle2,
+  AlertCircle,
+  Sliders,
+  Key,
+} from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+
+// Define Credential Type
+interface Credential {
+  id: string;
+  name: string;
+  provider: "GITHUB" | "DOCKER";
+  username: string;
+  isDefault: boolean;
+  createdAt: string;
+}
 
 export default function SettingsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+
   const [loading, setLoading] = useState(true);
+  const [credentials, setCredentials] = useState<Credential[]>([]);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [modalType, setModalType] = useState<"GITHUB" | "DOCKER">("GITHUB");
+
+  // Form State
+  const [formName, setFormName] = useState("");
+  const [formUsername, setFormUsername] = useState("");
+  const [formToken, setFormToken] = useState("");
+  const [formIsDefault, setFormIsDefault] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const [gitUser, setGitUser] = useState("");
-  const [gitToken, setGitToken] = useState("");
-  const [hasGitToken, setHasGitToken] = useState(false);
-
-  const [dockerUser, setDockerUser] = useState("");
-  const [dockerToken, setDockerToken] = useState("");
-  const [hasDockerToken, setHasDockerToken] = useState(false);
-  const [isDockerOrg, setIsDockerOrg] = useState(false);
-  const [dockerOrgName, setDockerOrgName] = useState("");
-
+  // Initial Data Fetch
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.replace("/login"); // Use replace for auth redirects
+      router.replace("/login");
       return;
     }
-
     if (status === "authenticated") {
-      fetch("/api/user/settings")
-        .then((res) => res.json())
-        .then((data) => {
-          setGitUser(data.gitUser);
-          setHasGitToken(data.hasGitToken);
-          setDockerUser(data.dockerUser);
-          setHasDockerToken(data.hasDockerToken);
-          setIsDockerOrg(data.isDockerOrganization || false);
-          setDockerOrgName(data.dockerOrgName || "");
-          setLoading(false);
-        });
+      fetchCredentials();
     }
   }, [status, router]);
 
-  const [toast, setToast] = useState<string | null>(null);
-
-  const showToast = (message: string) => {
-    setToast(message);
-    setTimeout(() => setToast(null), 3000);
+  const fetchCredentials = async () => {
+    try {
+      const res = await fetch("/api/user/settings/credentials");
+      const data = await res.json();
+      setCredentials(data.credentials || []);
+    } catch (error) {
+      console.error("Failed to fetch credentials");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSave = async () => {
+  const openAddModal = (type: "GITHUB" | "DOCKER") => {
+    setModalType(type);
+    setFormName("");
+    setFormUsername("");
+    setFormToken("");
+    setFormIsDefault(false);
+    setShowAddModal(true);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
     setSaving(true);
     try {
-      await fetch("/api/user/settings", {
+      const res = await fetch("/api/user/settings/credentials", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          gitUser,
-          gitToken,
-          dockerUser,
-          dockerToken,
-          isDockerOrganization: isDockerOrg,
-          dockerOrgName: isDockerOrg ? dockerOrgName : null,
+          name: formName,
+          provider: modalType,
+          username: formUsername,
+          token: formToken,
+          isDefault: formIsDefault,
         }),
       });
-      showToast("Settings saved successfully");
-      setTimeout(() => window.location.reload(), 1500);
+
+      if (res.ok) {
+        setShowAddModal(false);
+        fetchCredentials(); // Reload list
+      } else {
+        alert("Failed to save credential");
+      }
     } catch (error) {
-      showToast("Failed to save settings");
+      alert("Error saving credential");
     } finally {
       setSaving(false);
     }
   };
 
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this account?")) return;
+    try {
+      await fetch(`/api/user/settings/credentials?id=${id}`, {
+        method: "DELETE",
+      });
+      setCredentials((prev) => prev.filter((c) => c.id !== id));
+    } catch (error) {
+      alert("Failed to delete");
+    }
+  };
+
   if (loading)
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-2xl mx-auto px-4">
-          <div className="h-8 bg-gray-200 rounded w-48 mb-6 animate-pulse"></div>
-          <div className="bg-white rounded-xl border p-6 space-y-6">
-            <div className="h-20 bg-gray-100 rounded animate-pulse"></div>
-            <div className="h-20 bg-gray-100 rounded animate-pulse"></div>
-          </div>
-        </div>
+      <div className="w-full h-96 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
       </div>
     );
 
+  const githubCreds = credentials.filter((c) => c.provider === "GITHUB");
+  const dockerCreds = credentials.filter((c) => c.provider === "DOCKER");
+
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      {/* Toast */}
-      {toast && (
-        <div className="fixed top-4 right-4 z-50 bg-green-500 text-white px-4 py-3 rounded-lg shadow-lg animate-in slide-in-from-top-5">
-          {toast}
-        </div>
-      )}
+    <div className="w-full space-y-8 pb-20">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
+          <Sliders className="text-slate-400" /> Settings
+        </h1>
+        <p className="text-gray-500 text-sm mt-1 ml-9">
+          Manage your connected accounts, organizations, and access tokens.
+        </p>
+      </div>
 
-      <div className="max-w-2xl mx-auto px-4">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Credentials</h1>
-          <p className="text-gray-500 text-sm mt-1">
-            Manage your integration tokens
-          </p>
-        </div>
-
-        <div className="bg-white rounded-xl border">
-          <div className="p-6 space-y-6">
-            {/* GitHub Section */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-3">
-                GitHub Token
-              </label>
-              <div className="space-y-3">
-                <input
-                  className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                  placeholder="Username"
-                  value={gitUser}
-                  onChange={(e) => setGitUser(e.target.value)}
-                />
-                <div className="relative">
-                  <input
-                    type="password"
-                    className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                    placeholder={
-                      hasGitToken ? "Token saved" : "Personal Access Token"
-                    }
-                    value={gitToken}
-                    onChange={(e) => setGitToken(e.target.value)}
-                  />
-                  {hasGitToken && !gitToken && (
-                    <CheckCircle
-                      className="absolute right-3 top-3 text-green-500"
-                      size={18}
-                    />
-                  )}
-                </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* GitHub Section */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
+          <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-gray-100 rounded-lg border border-gray-200">
+                <Github className="w-5 h-5 text-gray-700" />
+              </div>
+              <div>
+                <h2 className="font-bold text-gray-900 text-sm">
+                  GitHub Accounts
+                </h2>
+                <p className="text-[11px] text-gray-500">
+                  Access private repositories
+                </p>
               </div>
             </div>
-
-            <div className="border-t pt-6">
-              <label className="block text-sm font-semibold text-gray-900 mb-3">
-                Docker Hub Token
-              </label>
-              <div className="space-y-3">
-                {/* Organization Checkbox */}
-                <div className="flex items-center gap-2 mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <input
-                    type="checkbox"
-                    id="isDockerOrg"
-                    checked={isDockerOrg}
-                    onChange={(e) => setIsDockerOrg(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                  />
-                  <label
-                    htmlFor="isDockerOrg"
-                    className="text-sm text-gray-700 cursor-pointer"
-                  >
-                    This is an <strong>Organization</strong> account
-                  </label>
-                </div>
-
-                {isDockerOrg && (
-                  <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg mb-3">
-                    <p className="text-xs text-amber-800">
-                      <strong>Note:</strong> When using an Organization account,
-                      enter the <strong>Organization Name</strong> below and
-                      ensure your token has proper permissions for that
-                      organization.
-                    </p>
-                  </div>
-                )}
-
-                <input
-                  className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                  placeholder={
-                    isDockerOrg ? "Your Personal Username" : "Username"
-                  }
-                  value={dockerUser}
-                  onChange={(e) => setDockerUser(e.target.value)}
-                />
-
-                {isDockerOrg && (
-                  <input
-                    className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition bg-blue-50"
-                    placeholder="Organization Name (e.g., 261361-VetNurse)"
-                    value={dockerOrgName}
-                    onChange={(e) => setDockerOrgName(e.target.value)}
-                  />
-                )}
-
-                <div className="relative">
-                  <input
-                    type="password"
-                    className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                    placeholder={
-                      hasDockerToken
-                        ? "Token saved"
-                        : isDockerOrg
-                        ? "Organization Access Token"
-                        : "Access Token"
-                    }
-                    value={dockerToken}
-                    onChange={(e) => setDockerToken(e.target.value)}
-                  />
-                  {hasDockerToken && !dockerToken && (
-                    <CheckCircle
-                      className="absolute right-3 top-3 text-green-500"
-                      size={18}
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
+            <button
+              onClick={() => openAddModal("GITHUB")}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gray-900 rounded-lg hover:bg-black transition-colors shadow-sm"
+            >
+              <Plus size={14} /> Add Account
+            </button>
           </div>
 
-          <div className="border-t p-6 bg-gray-50 rounded-b-xl">
+          <div className="divide-y divide-slate-100 flex-1">
+            {githubCreds.length === 0 ? (
+              <div className="p-12 text-center text-gray-400 text-sm flex flex-col items-center gap-2">
+                <Github size={32} className="opacity-20" />
+                No GitHub accounts connected.
+              </div>
+            ) : (
+              githubCreds.map((cred) => (
+                <CredentialItem
+                  key={cred.id}
+                  cred={cred}
+                  onDelete={handleDelete}
+                />
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Docker Section */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
+          <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-50 rounded-lg border border-blue-100">
+                <Box className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <h2 className="font-bold text-gray-900 text-sm">
+                  Docker Registries
+                </h2>
+                <p className="text-[11px] text-gray-500">
+                  Push & pull container images
+                </p>
+              </div>
+            </div>
             <button
-              onClick={handleSave}
-              disabled={saving}
-              className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 font-medium"
+              onClick={() => openAddModal("DOCKER")}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
             >
-              {saving ? (
-                <>
-                  <Loader2 className="animate-spin" size={18} />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save size={18} />
-                  Save Changes
-                </>
-              )}
+              <Plus size={14} /> Add Registry
             </button>
+          </div>
+
+          <div className="divide-y divide-slate-100 flex-1">
+            {dockerCreds.length === 0 ? (
+              <div className="p-12 text-center text-gray-400 text-sm flex flex-col items-center gap-2">
+                <Box size={32} className="opacity-20" />
+                No Docker registries connected.
+              </div>
+            ) : (
+              dockerCreds.map((cred) => (
+                <CredentialItem
+                  key={cred.id}
+                  cred={cred}
+                  onDelete={handleDelete}
+                />
+              ))
+            )}
           </div>
         </div>
       </div>
+
+      {/* Modal Form */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full animate-in zoom-in-95 duration-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
+              <div
+                className={`p-2 rounded-lg ${
+                  modalType === "GITHUB" ? "bg-gray-100" : "bg-blue-50"
+                }`}
+              >
+                {modalType === "GITHUB" ? (
+                  <Github size={20} />
+                ) : (
+                  <Box size={20} className="text-blue-600" />
+                )}
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900">
+                  Add {modalType === "GITHUB" ? "GitHub" : "Docker"} Account
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Enter your credentials below
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSave} className="p-6 space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase mb-1.5 block">
+                  Account Name (Alias)
+                </label>
+                <input
+                  required
+                  placeholder="e.g. Personal, Company Org"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase mb-1.5 block">
+                  {modalType === "GITHUB"
+                    ? "GitHub Username"
+                    : "Docker ID / Org Name"}
+                </label>
+                <input
+                  required
+                  placeholder={
+                    modalType === "GITHUB" ? "octocat" : "dockeruser"
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
+                  value={formUsername}
+                  onChange={(e) => setFormUsername(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase mb-1.5 flex items-center gap-1">
+                  Access Token (PAT){" "}
+                  <Key size={12} className="text-slate-400" />
+                </label>
+                <input
+                  required
+                  type="password"
+                  placeholder="ghp_... or dckr_..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm font-mono"
+                  value={formToken}
+                  onChange={(e) => setFormToken(e.target.value)}
+                />
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Use a generated Personal Access Token, not your password.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <input
+                  type="checkbox"
+                  id="isDefault"
+                  checked={formIsDefault}
+                  onChange={(e) => setFormIsDefault(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                />
+                <label
+                  htmlFor="isDefault"
+                  className="text-sm text-gray-700 cursor-pointer select-none"
+                >
+                  Set as default account
+                </label>
+              </div>
+
+              <div className="flex gap-3 pt-4 border-t border-slate-100 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex justify-center items-center gap-2 transition-colors shadow-sm"
+                >
+                  {saving ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    "Save Credentials"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CredentialItem({
+  cred,
+  onDelete,
+}: {
+  cred: Credential;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <div className="p-4 flex items-center justify-between group hover:bg-slate-50 transition-colors">
+      <div className="flex items-center gap-4">
+        <div
+          className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shadow-sm ${
+            cred.provider === "GITHUB" ? "bg-gray-800" : "bg-blue-600"
+          }`}
+        >
+          {cred.username.charAt(0).toUpperCase()}
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-gray-900 text-sm">
+              {cred.name}
+            </span>
+            {cred.isDefault && (
+              <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold border border-emerald-100 flex items-center gap-0.5">
+                <CheckCircle2 size={10} /> DEFAULT
+              </span>
+            )}
+          </div>
+          <div className="text-xs text-gray-500 font-mono mt-0.5">
+            @{cred.username}
+          </div>
+        </div>
+      </div>
+      <button
+        onClick={() => onDelete(cred.id)}
+        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+        title="Remove Account"
+      >
+        <Trash2 size={16} />
+      </button>
     </div>
   );
 }

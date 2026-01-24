@@ -2,9 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import PipelineView from "@/components/PipelineView";
 import MonorepoAction from "@/components/MonorepoAction";
-// import ScanStatusAlert from "@/components/ScanStatusAlert";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, GitBranch, Hash, Shield, Package } from "lucide-react";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -17,8 +16,6 @@ export default async function ScanPage(props: Props) {
   const params = await props.params;
   const id = params.id;
 
-  console.log("🔍 Scan Page - Pipeline ID:", id);
-
   if (!id) {
     console.error("❌ No pipeline ID provided");
     notFound();
@@ -26,16 +23,20 @@ export default async function ScanPage(props: Props) {
 
   try {
     const scanData = await prisma.scanHistory.findFirst({
-      where: { pipelineId: id }, // เปลี่ยนจาก scanId เป็น pipelineId
+      where: { pipelineId: id },
       select: {
         status: true,
-        scanMode: true, // เพิ่ม scanMode เพื่อตรวจสอบว่าเป็น SCAN_ONLY หรือไม่
+        scanMode: true,
+        imageTag: true,
+        createdAt: true,
         service: {
           select: {
+            serviceName: true,
             group: {
               select: {
                 id: true,
                 repoUrl: true,
+                groupName: true,
               },
             },
           },
@@ -43,59 +44,88 @@ export default async function ScanPage(props: Props) {
       },
     });
 
-    console.log("📊 Query result:", scanData ? "Found" : "Not found");
-    console.log("📊 Status:", scanData?.status);
-    console.log("📊 Scan Mode:", scanData?.scanMode);
-
     if (!scanData) {
       console.error("❌ No scan data found for pipeline:", id);
       notFound();
     }
 
-    // สร้างตัวแปร repoUrl และ groupId เพื่อให้เรียกใช้ง่ายๆ ใน JSX
     const repoUrl = scanData?.service?.group?.repoUrl;
     const groupId = scanData?.service?.group?.id;
-    const scanMode = scanData?.scanMode; // เก็บ scanMode
-    const isScanOnly = scanMode === "SCAN_ONLY"; // ตรวจสอบว่าเป็น SCAN_ONLY หรือไม่
-
-    console.log("🔍 isScanOnly:", isScanOnly, "scanMode:", scanMode);
-    const isQueued =
-      scanData?.status === "QUEUED" || scanData?.status === "PENDING";
-    const isCompleted =
-      scanData?.status === "SUCCESS" ||
-      scanData?.status === "PASSED" ||
-      scanData?.status === "BLOCKED" ||
-      scanData?.status === "FAILED" ||
-      scanData?.status === "FAILED_SECURITY" ||
-      scanData?.status === "FAILED_BUILD";
-
-    console.log("✅ Rendering page with status:", scanData.status);
+    const scanMode = scanData?.scanMode;
+    const isScanOnly = scanMode === "SCAN_ONLY";
 
     return (
-      <main className="min-h-screen bg-gray-50 p-8">
-        <div className="max-w-6xl mx-auto space-y-8">
-          {/* ส่วนหัว */}
-          <div>
+      <main className="w-full min-h-screen bg-slate-50/50 pb-20">
+        <div className="w-full max-w-full space-y-6">
+          {/* Header Section */}
+          <div className="flex flex-col gap-4 border-b border-slate-200 pb-6 mb-6">
             <Link
               href="/dashboard"
-              className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-3 text-sm font-medium transition"
+              className="inline-flex items-center gap-2 text-slate-500 hover:text-slate-900 text-sm font-medium transition w-fit"
             >
               <ArrowLeft className="w-4 h-4" />
               Back to Dashboard
             </Link>
-            <h1 className="text-2xl font-bold text-gray-900">Scan Results</h1>
-            <p className="text-gray-500 text-sm mt-1">Pipeline: {id}</p>
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
+                  Scan Results
+                  <span
+                    className={`text-xs px-2 py-1 rounded-full border font-bold uppercase tracking-wider ${
+                      isScanOnly
+                        ? "bg-purple-50 text-purple-700 border-purple-200"
+                        : "bg-blue-50 text-blue-700 border-blue-200"
+                    }`}
+                  >
+                    {isScanOnly ? "Security Audit" : "Build & Scan"}
+                  </span>
+                </h1>
+
+                <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-slate-500">
+                  <div className="flex items-center gap-1.5 font-mono bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                    <Hash size={12} className="text-slate-400" />
+                    {id.substring(0, 8)}
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <GitBranch size={14} className="text-slate-400" />
+                    <span className="font-medium text-slate-700">
+                      {scanData.service.group.groupName}
+                    </span>
+                    <span className="text-slate-300">/</span>
+                    <span className="font-medium text-slate-900">
+                      {scanData.service.serviceName}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <Package size={14} className="text-slate-400" />
+                    <span className="font-mono text-xs">
+                      {scanData.imageTag}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Badge (Placeholder for logic if needed) */}
+              {/* <div className="text-right hidden sm:block">
+                 <div className="text-xs text-slate-400 mb-1">Started</div>
+                 <div className="font-mono text-sm text-slate-700">
+                    {new Date(scanData.createdAt).toLocaleString()}
+                 </div>
+              </div> */}
+            </div>
           </div>
 
-          {/* ส่วนแจ้งเตือน Real-time (ส่ง pipelineId ไป) - ซ่อนเมื่อ QUEUED */}
-          {/* {!isQueued && <ScanStatusAlert scanId={id} />} */}
+          {/* 1. Pipeline View (Graph & Table) */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <PipelineView scanId={id} scanMode={scanMode} />
+          </div>
 
-          {/* 1. แสดงผลกราฟและตาราง Pipeline */}
-          <PipelineView scanId={id} scanMode={scanMode} />
-
-          {/* 2. ส่วน Monorepo Action - ซ่อนสำหรับ SCAN_ONLY mode */}
+          {/* 2. Monorepo Action (Add more services) */}
           {!isScanOnly && repoUrl && groupId && (
-            <div className="pt-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <div className="pt-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
               <MonorepoAction
                 repoUrl={repoUrl}
                 groupId={groupId}
@@ -108,6 +138,6 @@ export default async function ScanPage(props: Props) {
     );
   } catch (error) {
     console.error("💥 Error in ScanPage:", error);
-    throw error; // ให้ Next.js error boundary จัดการ
+    throw error;
   }
 }

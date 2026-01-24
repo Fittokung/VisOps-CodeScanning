@@ -1,4 +1,3 @@
-// app/api/user/setup/complete/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -17,7 +16,7 @@ export async function POST(req: Request) {
     const { githubPAT, githubUsername, dockerUsername, dockerToken } =
       await req.json();
 
-    // Validate input
+    // Validate input presence
     if (!githubPAT || !githubUsername || !dockerUsername || !dockerToken) {
       return NextResponse.json(
         { error: "All fields are required" },
@@ -42,40 +41,42 @@ export async function POST(req: Request) {
       );
     }
 
-    // Encrypt tokens before storing
-    const encryptedGithubPAT = encrypt(githubPAT);
-    const encryptedDockerToken = encrypt(dockerToken);
-
     const userId = (session.user as any).id;
+    const finalGitUsername = validationResult.githubUsername || githubUsername;
 
-    // Verify user exists before updating
-    const existingUser = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    // Use Transaction to ensure both credentials and user status are updated atomically
+    await prisma.$transaction(async (tx) => {
+      // 1. Create Default GitHub Credential
+      await tx.credential.create({
+        data: {
+          userId,
+          name: "Default GitHub",
+          provider: "GITHUB",
+          username: finalGitUsername,
+          token: encrypt(githubPAT), // Encrypt before saving
+          isDefault: true,
+        },
+      });
 
-    if (!existingUser) {
-      return NextResponse.json(
-        { error: "User not found. Please log in again." },
-        { status: 404 }
-      );
-    }
+      // 2. Create Default Docker Credential
+      await tx.credential.create({
+        data: {
+          userId,
+          name: "Default Docker",
+          provider: "DOCKER",
+          username: dockerUsername,
+          token: encrypt(dockerToken), // Encrypt before saving
+          isDefault: true,
+        },
+      });
 
-    // Update user with encrypted tokens and mark setup as complete
-    // Save to both old fields (for backward compatibility) and settings fields
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        githubPAT: encryptedGithubPAT,
-        githubUsername: githubUsername || validationResult.githubUsername,
-        dockerToken: encryptedDockerToken,
-        dockerUsername: dockerUsername,
-        // Also save to settings fields so they appear in /settings page
-        defaultGitUser: githubUsername || validationResult.githubUsername,
-        defaultGitToken: encryptedGithubPAT,
-        defaultDockerUser: dockerUsername,
-        defaultDockerToken: encryptedDockerToken,
-        isSetupComplete: true,
-      },
+      // 3. Mark User as Setup Complete
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          isSetupComplete: true,
+        },
+      });
     });
 
     return NextResponse.json({

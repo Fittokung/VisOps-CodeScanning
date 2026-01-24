@@ -53,26 +53,23 @@ export async function POST(req: Request) {
       dockerOrgName,
     } = body;
 
-    // Build update data - implements UPSERT logic
-    // Always update username fields if provided (even empty string to clear)
-    // Only update token fields if a new value is provided (not empty)
-    const updateData: Record<string, string | boolean | null> = {};
+    // Build update data
+    // Only update fields that are explicitly provided
+    const updateData: any = {};
 
-    // Git credentials - upsert logic
+    // Git credentials
     if (gitUser !== undefined) {
       updateData.defaultGitUser = gitUser;
     }
     if (gitToken && gitToken.trim() !== "") {
-      // Only update token if new value provided - this overwrites any existing token
       updateData.defaultGitToken = encrypt(gitToken.trim());
     }
 
-    // Docker credentials - upsert logic
+    // Docker credentials
     if (dockerUser !== undefined) {
       updateData.defaultDockerUser = dockerUser;
     }
     if (dockerToken && dockerToken.trim() !== "") {
-      // Only update token if new value provided - this overwrites any existing token
       updateData.defaultDockerToken = encrypt(dockerToken.trim());
     }
 
@@ -84,26 +81,22 @@ export async function POST(req: Request) {
       updateData.dockerOrgName = dockerOrgName || null;
     }
 
-    // Verify user exists
-    const existingUser = await prisma.user.findUnique({
+    // *** FIX: Use upsert instead of findUnique + update ***
+    // This handles the case where the session exists but the DB record is missing.
+    await prisma.user.upsert({
       where: { email: session.user.email },
-    });
-
-    if (!existingUser) {
-      return NextResponse.json(
-        { error: "User not found. Please log in again." },
-        { status: 404 }
-      );
-    }
-
-    // Perform upsert - update existing or insert new values
-    await prisma.user.update({
-      where: { email: session.user.email },
-      data: updateData,
+      // Case 1: User exists -> Update the fields
+      update: updateData,
+      // Case 2: User does not exist -> Create new user with these settings
+      create: {
+        email: session.user.email,
+        name: session.user.name || session.user.email.split("@")[0], // Fallback name
+        ...updateData,
+      },
     });
 
     console.log(
-      `[Settings Updated] User ${session.user.email} updated credentials`
+      `[Settings Updated] User ${session.user.email} updated credentials (Upsert)`
     );
 
     return NextResponse.json({

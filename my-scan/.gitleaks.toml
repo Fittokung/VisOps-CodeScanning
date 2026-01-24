@@ -1,7 +1,7 @@
-# Gitleaks Configuration for VisOps-CodeScanning
+# Gitleaks Configuration for VisScan-CodeScanning
 # This config ensures comprehensive secret detection including .env files
 
-title = "Gitleaks Config for VisOps"
+title = "Gitleaks Config for VisScan"
 
 # Extend the default gitleaks config
 [extend]

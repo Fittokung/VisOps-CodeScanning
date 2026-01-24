@@ -1,10 +1,9 @@
-// /app/page.tsx
 "use client";
 
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Shield, Container, TrendingUp, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react"; // ✅ ใช้ ArrowRight
 import Link from "next/link";
 
 export default function Home() {
@@ -13,7 +12,6 @@ export default function Home() {
 
   useEffect(() => {
     if (status === "authenticated") {
-      // If logged in, redirect based on setup status
       const isSetupComplete = (session?.user as any)?.isSetupComplete;
       if (isSetupComplete) {
         router.push("/dashboard");
@@ -23,91 +21,66 @@ export default function Home() {
     }
   }, [status, session, router]);
 
-  // Show landing page for unauthenticated users
-  if (status === "loading") {
-    return null;
-  }
+  if (status === "loading") return null;
 
   return (
-    <main className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-4xl">
-        {/* Hero Section */}
-        <div className="text-center mb-16">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-6">
-            <Shield className="w-8 h-8 text-white" />
+    <div className="min-h-screen bg-white flex flex-col font-sans text-slate-900 selection:bg-blue-100">
+      {/* 1. Minimal Nav */}
+      <nav className="w-full py-6 px-8 flex justify-end">
+        <Link
+          href="/login"
+          className="text-sm font-medium text-slate-500 hover:text-blue-700 transition-colors"
+        >
+          Sign in
+        </Link>
+      </nav>
+
+      {/* 2. Center Content */}
+      <main className="flex-1 flex flex-col items-center justify-center p-4 -mt-16">
+        <div className="w-full max-w-md text-center space-y-8 animate-in fade-in zoom-in-95 duration-500">
+          {/* Logo Box */}
+          <div className="flex justify-center">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center text-white font-bold text-3xl shadow-2xl shadow-blue-200">
+              VS
+            </div>
           </div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-3">VisOps Scan</h1>
-          <p className="text-gray-600 text-lg mb-8">
-            Automated security scanning and vulnerability detection
-          </p>
 
-          {/* Login Button */}
-          <Link
-            href="/login"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24">
-              <path
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                fill="white"
-              />
-              <path
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                fill="white"
-              />
-              <path
-                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.84z"
-                fill="white"
-              />
-              <path
-                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                fill="white"
-              />
-            </svg>
-            Continue with Google
-          </Link>
-        </div>
+          {/* Typography */}
+          <div className="space-y-4">
+            <h1 className="text-5xl font-extrabold tracking-tight sm:text-6xl bg-gradient-to-r from-blue-700 to-indigo-600 bg-clip-text text-transparent pb-2">
+              VisScan
+            </h1>
 
-        {/* Features Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
-            <Shield className="w-6 h-6 text-blue-600 mb-3" />
-            <h3 className="font-semibold mb-1 text-gray-900">
-              Security Scanning
-            </h3>
-            <p className="text-sm text-gray-600">
-              Gitleaks, Semgrep, and Trivy integration
+            <p className="text-lg font-medium leading-relaxed">
+              <span className="text-slate-700 block mb-1">
+                Security scanning for modern dev teams.
+              </span>
+              <span className="text-blue-600 font-bold">
+                Code, Build, and Ship securely.
+              </span>
             </p>
           </div>
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
-            <Container className="w-6 h-6 text-blue-600 mb-3" />
-            <h3 className="font-semibold mb-1 text-gray-900">
-              Container Scanning
-            </h3>
-            <p className="text-sm text-gray-600">
-              Docker image vulnerability detection
-            </p>
-          </div>
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
-            <TrendingUp className="w-6 h-6 text-blue-600 mb-3" />
-            <h3 className="font-semibold mb-1 text-gray-900">Scan History</h3>
-            <p className="text-sm text-gray-600">
-              Track and compare results over time
-            </p>
-          </div>
-        </div>
 
-        {/* CTA Section */}
-        <div className="text-center">
-          <Link
-            href="/login"
-            className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium text-sm"
-          >
-            Get Started
-            <ArrowRight className="w-4 h-4" />
-          </Link>
+          {/* Minimal Actions */}
+          <div className="pt-4 flex flex-col items-center gap-4">
+            {/* ✅ ปุ่ม Get Started */}
+            <Link
+              href="/login"
+              className="group relative w-full sm:w-auto inline-flex items-center justify-center gap-3 px-8 py-3 bg-slate-900 text-white font-medium rounded-xl hover:bg-blue-700 transition-all shadow-sm hover:shadow-xl hover:-translate-y-0.5 duration-300"
+            >
+              <span>Get Started</span>
+              <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
+            </Link>
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
+
+      {/* 3. Footer */}
+      <footer className="py-6 text-center">
+        <p className="text-xs text-slate-300">
+          © {new Date().getFullYear()} VisScan Security
+        </p>
+      </footer>
+    </div>
   );
 }

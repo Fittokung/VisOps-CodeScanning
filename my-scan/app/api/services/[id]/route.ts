@@ -1,10 +1,8 @@
+// app/api/services/[id]/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-
-// ✅ 1. กำหนดรายชื่อ Admin (ในระบบจริงควรเก็บใน DB หรือ ENV)
-const ADMIN_EMAILS = ["admin@example.com", "dev@southth.com"];
 
 export async function DELETE(
   req: Request,
@@ -13,26 +11,30 @@ export async function DELETE(
   try {
     const resolved = await params;
     const serviceId = resolved.id;
-
-    // ✅ 2. ใช้ session แทน header
     const session = await getServerSession(authOptions);
 
-    if (!session?.user) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const userId = (session.user as any).id;
-    const userEmail = session.user.email || "";
-    const isAdmin = ADMIN_EMAILS.includes(userEmail);
+    const email = session.user.email;
 
-    // ✅ 3. ดึงข้อมูล Service มาดูก่อนว่าใครเป็นเจ้าของ
+    // 1. ดึงข้อมูล User ปัจจุบันจาก DB เพื่อเช็ค Role ล่าสุด (สำคัญมาก)
+    const currentUser = await prisma.user.findUnique({
+      where: { email: email },
+      select: { id: true, role: true },
+    });
+
+    if (!currentUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // 2. ดึงข้อมูล Service ที่ต้องการลบ
     const service = await prisma.projectService.findUnique({
       where: { id: serviceId },
       include: {
         group: {
-          include: {
-            user: { select: { email: true } },
-          },
+          select: { id: true, userId: true },
         },
       },
     });
@@ -41,38 +43,60 @@ export async function DELETE(
       return NextResponse.json({ error: "Service not found" }, { status: 404 });
     }
 
-    const ownerId = service.group.userId;
-    const isOwner = ownerId === userId;
+    // 3. Logic ตรวจสอบสิทธิ์แบบถาวร (RBAC)
+    const isOwner = service.group.userId === currentUser.id;
+    const isAdmin = currentUser.role === "ADMIN"; // เช็คจาก Database โดยตรง
 
-    // ✅ 4. เช็คสิทธิ์: ต้องเป็น Admin หรือ เจ้าของโปรเจกต์เท่านั้น
+    console.log(
+      `[DELETE Request] User: ${email} | Role: ${currentUser.role} | Owner: ${isOwner}`
+    );
+
+    // ถ้าไม่ใช่ Admin และ ไม่ใช่เจ้าของ -> ห้ามลบ
     if (!isAdmin && !isOwner) {
       return NextResponse.json(
-        { error: "Forbidden: You can only delete your own services." },
+        {
+          error:
+            "Forbidden: You do not have permission to delete this service.",
+        },
         { status: 403 }
       );
     }
 
-    console.log(
-      `[Delete Service] User: ${userEmail}, Role: ${
-        isAdmin ? "ADMIN" : "OWNER"
-      }, Target: ${serviceId}`
-    );
+    // 4. เริ่มกระบวนการลบ (Transaction)
+    await prisma.$transaction(async (tx) => {
+      // 4.1 ลบ Scan History
+      await tx.scanHistory.deleteMany({
+        where: { serviceId: serviceId },
+      });
 
-    // 5. ลบ History
-    await prisma.scanHistory.deleteMany({
-      where: { serviceId: serviceId },
+      // 4.2 ลบ Service
+      await tx.projectService.delete({
+        where: { id: serviceId },
+      });
+
+      // 4.3 ลบ ProjectGroup หากว่างเปล่า (คืน Quota)
+      const remainingServices = await tx.projectService.count({
+        where: { groupId: service.group.id },
+      });
+
+      if (remainingServices === 0) {
+        await tx.projectGroup.delete({
+          where: { id: service.group.id },
+        });
+        console.log(
+          `[Quota Cleaned] ProjectGroup ${service.group.id} removed.`
+        );
+      }
     });
 
-    // 6. ลบ Service
-    const deleted = await prisma.projectService.delete({
-      where: { id: serviceId },
+    return NextResponse.json({
+      success: true,
+      message: "Service deleted successfully",
     });
-
-    return NextResponse.json({ success: true, deleted });
   } catch (error: any) {
-    console.error("Delete Service Error:", error);
+    console.error("[Delete Error]:", error);
     return NextResponse.json(
-      { error: "Failed to delete service" },
+      { error: "Failed to delete service: " + error.message },
       { status: 500 }
     );
   }
