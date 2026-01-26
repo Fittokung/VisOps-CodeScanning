@@ -65,13 +65,19 @@ BACKEND_HOST_URL="http://YOUR_LOCAL_IP:3000"
 
 ---
 
-## 🗄️ 4. การตั้งค่า Database
+## 🗄️ 4. การตั้งค่า Database & Queue System
 
 1.  **Start Database & RabbitMQ (ด้วย Docker)**
-    ถ้าคุณมีไฟล์ `docker-compose.db.yml`:
+    ในไฟล์ `docker-compose.db.yml` จะมี service `postgres` และ `rabbitmq` เตรียมไว้ให้แล้ว
+    
     ```bash
     docker-compose -f docker-compose.db.yml up -d
     ```
+
+    *ตรวจสอบสถานะ:*
+    *   **PostgreSQL**: Port 5432
+    *   **RabbitMQ Management**: http://localhost:15672 (User: `user`, Pass: `password`)
+    *   **RabbitMQ Connection**: amqp://localhost:5672 (สำหรับใส่ใน .env `RABBITMQ_URL`)
 
 2.  **Migrate Database Schema**
     คำสั่งนี้จะสร้างตารางใน Database ตามไฟล์ `prisma/schema.prisma`
