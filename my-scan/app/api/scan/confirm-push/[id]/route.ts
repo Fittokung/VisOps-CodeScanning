@@ -9,23 +9,37 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const pipelineId = id;
 
-    if (!pipelineId)
+    if (!id)
       return NextResponse.json({ error: "missing id" }, { status: 400 });
 
-    // 1. Look up scan record to get GitLab project ID
+    // 1. Look up scan record to get scan mode
+    // Support both ID (UUID) and PipelineID
     const scanRecord = await prisma.scanHistory.findFirst({
-      where: { pipelineId: pipelineId },
+      where: {
+        OR: [
+          { id: id },
+          { pipelineId: id }
+        ]
+      },
     });
 
     if (!scanRecord) {
       return NextResponse.json({ error: "Scan not found" }, { status: 404 });
     }
 
-    // Get GitLab project ID from the scan record (stored as scanId)
-    const projectId = scanRecord.scanId; // This is the GitLab project ID (e.g., 141)
+    const { pipelineId } = scanRecord;
+    if (!pipelineId) {
+        return NextResponse.json({ error: "Scan has no pipeline ID" }, { status: 400 });
+    }
 
+
+
+
+    // Use Global Project ID from env
+    const projectId = process.env.GITLAB_PROJECT_ID; 
+
+    // Remove trailing slash if present
     const baseUrl = process.env.GITLAB_API_URL?.replace(/\/$/, "");
     const token = process.env.GITLAB_TOKEN;
     const agent = new https.Agent({ rejectUnauthorized: false });
@@ -34,8 +48,9 @@ export async function POST(
     console.log(`📦 GitLab Project ID: ${projectId}`);
 
     // 2. Find the specific pipeline
+    // URL is already .../api/v4 in .env, so we append /projects/...
     const pipelineRes = await axios.get(
-      `${baseUrl}/api/v4/projects/${projectId}/pipelines/${pipelineId}`,
+      `${baseUrl}/projects/${projectId}/pipelines/${pipelineId}`,
       {
         headers: { "PRIVATE-TOKEN": token },
         httpsAgent: agent,
@@ -53,7 +68,7 @@ export async function POST(
 
     // 3. Get jobs for this specific pipeline
     const jobsRes = await axios.get(
-      `${baseUrl}/api/v4/projects/${projectId}/pipelines/${pipelineId}/jobs`,
+      `${baseUrl}/projects/${projectId}/pipelines/${pipelineId}/jobs`,
       {
         headers: { "PRIVATE-TOKEN": token },
         httpsAgent: agent,
@@ -65,7 +80,8 @@ export async function POST(
         j.name === "push_to_hub" &&
         (j.status === "manual" ||
           j.status === "created" ||
-          j.status === "skipped")
+          j.status === "skipped" || 
+          j.status === "success") // If already success, we might re-trigger or handle differently? existing logic says trigger.
     );
 
     console.log(`Jobs found: ${jobsRes.data.length}`);
@@ -89,13 +105,19 @@ export async function POST(
     console.log(`Triggering Job ID: ${manualJob.id} (${manualJob.name})...`);
 
     const playRes = await axios.post(
-      `${baseUrl}/api/v4/projects/${projectId}/jobs/${manualJob.id}/play`,
+      `${baseUrl}/projects/${projectId}/jobs/${manualJob.id}/play`,
       {},
       {
         headers: { "PRIVATE-TOKEN": token },
         httpsAgent: agent,
       }
     );
+
+    // Update DB to show image is pushed (optimistic, or wait for webhook)
+    await prisma.scanHistory.update({
+        where: { id: scanRecord.id },
+        data: { imagePushed: true }
+    });
 
     return NextResponse.json({
       success: true,

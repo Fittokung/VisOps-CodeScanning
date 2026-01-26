@@ -1,0 +1,40 @@
+1. Network & Webhooks
+ใน Production ปกติ GitLab Server จะสามารถมองเห็น VisScan Server ได้ (เพราะอยู่ในวง Network เดียวกัน หรือมี Public IP)
+
+สิ่งที่ต้องทำ:
+
+ตั้งค่า NEXTAUTH_URL ในไฟล์ .env ให้เป็น Domain จริง (เช่น https://visscan.company.com)
+
+ยกเลิก Auto-Sync: ในไฟล์ PipelineView.tsx คุณสามารถเอา forceSync() ใน setInterval ออก แล้วกลับไปใช้ Webhook 100% เพื่อลดภาระ Server
+
+ตรวจสอบ Firewall: เปิด Port 80/443 ให้ GitLab ยิง Webhook เข้ามาที่ Route /api/webhook ได้
+
+2. Environment Variables
+ต้องอัปเดตไฟล์ .env ให้เป็นค่าของ Production:
+
+DATABASE_URL: เปลี่ยนจาก SQLite (file:./dev.db) ไปใช้ PostgreSQL หรือ MySQL ที่มีความเสถียรและรองรับ Concurrent Users ได้ดีกว่า
+
+GITLAB_API_URL: ตรวจสอบว่าเป็น URL ภายใน (Internal IP) หรือ Domain Name ที่ถูกต้อง
+
+NEXTAUTH_SECRET: ต้องเปลี่ยนเป็นค่า Random string ที่ยาวและซับซ้อน (ห้ามใช้ค่าเดียวกับ Dev)
+
+3. Infrastructure & Deployment
+Dockerization: ควร build Next.js App เป็น Docker Image (Dockerfile สำหรับ Production) เพื่อให้ Deploy ง่าย
+
+Process Management:
+
+ตัว Web App (Next.js) และ Worker ควรแยก Container กัน หรือใช้ Process Manager เช่น PM2 เพื่อคุมให้รันคู่กัน
+
+Worker สำคัญมาก: ถ้า Worker ตาย Pipeline จะไม่เริ่มทำงาน ต้องมีระบบ Auto-restart
+
+SSL/TLS: ต้องใช้ HTTPS เท่านั้น (ผ่าน Nginx หรือ Cloud Load Balancer) เพื่อความปลอดภัยของ Token และ Source Code
+
+4. Security
+GitLab Token: สร้าง "Project Access Token" หรือ "Group Access Token" ใน GitLab ที่มีสิทธิ์จำกัด (Least Privilege) เฉพาะ Project ที่ต้องสแกน แทนการใช้ Personal Access Token ของคุณเอง
+
+Database Backup: ตั้ง Schedule Backup ข้อมูล ScanHistory และ Findings ทุกวัน
+
+5. Scaling (รองรับคนใช้เยอะ)
+Queue System: ปัจจุบัน Worker ทำงานแบบง่ายๆ ถ้าคนกด Scan พร้อมกัน 100 คน เครื่องอาจค้าง ใน Production ควรใช้ Redis + BullMQ มาจัดการคิวงาน (Job Queue) แทน Array ใน Memory
+
+Storage: Logs และ Report Files (JSON) ปัจจุบันเก็บใน Database ถ้าข้อมูลเยอะมากควรย้ายไปเก็บใน S3 / MinIO แล้วเก็บแค่ URL ใน Database แทน
