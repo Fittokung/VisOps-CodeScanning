@@ -115,13 +115,13 @@ export default function DashboardPage() {
   const { data: activeScansData } = useSWR(
     status === "authenticated" ? "/api/scan/status/active" : null,
     fetcher,
-    { refreshInterval: 2000 }
+    { refreshInterval: 2000 },
   );
 
   const { data: dashboardData, isLoading: dashboardLoading } = useSWR(
     status === "authenticated" ? "/api/dashboard" : null,
     fetcher,
-    { refreshInterval: 10000, revalidateOnFocus: true }
+    { refreshInterval: 10000, revalidateOnFocus: true },
   );
 
   const projects: Project[] = dashboardData?.projects || [];
@@ -133,7 +133,7 @@ export default function DashboardPage() {
 
     // ✅ FIX: Explicitly cast to Set<string>
     const currentIds = new Set<string>(
-      activeScans.map((s: ActiveScan) => s.id)
+      activeScans.map((s: ActiveScan) => s.id),
     );
     const prevIds = prevActiveScanIds.current;
 
@@ -172,7 +172,11 @@ export default function DashboardPage() {
     try {
       const res = await fetch(`/api/projects/${projectId}`, {
         method: "DELETE",
+        // เพิ่ม headers และ body ตรงนี้
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ forceStop: true }),
       });
+
       if (res.ok) {
         showToast("Project deleted", "success");
         mutate("/api/dashboard");
@@ -227,11 +231,20 @@ export default function DashboardPage() {
           imageTag: rescanTag || "latest",
         }),
       });
+
+      // ✅ เพิ่มบรรทัดนี้: อ่านข้อมูล JSON จาก Response
+      const data = await res.json();
+
       if (res.ok) {
         showToast("Scan started", "success");
         setShowRescanModal(null);
         setRescanTag("");
         mutate("/api/scan/status/active");
+
+        // ✅ เพิ่มบรรทัดนี้: สั่ง Redirect ไปหน้าผลลัพธ์ทันที!
+        if (data.scanId) {
+          router.push(`/scan/${data.scanId}`);
+        }
       } else {
         showToast("Failed to start scan", "error");
       }
@@ -413,8 +426,8 @@ export default function DashboardPage() {
                   </span>
                   {project.services.some((s) =>
                     s.scans.some((sc) =>
-                      ["RUNNING", "QUEUED"].includes(sc.status)
-                    )
+                      ["RUNNING", "QUEUED"].includes(sc.status),
+                    ),
                   ) && (
                     <span className="text-[10px] font-semibold bg-blue-600/90 text-white px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
                       <Loader2 size={10} className="animate-spin" /> Active
@@ -459,8 +472,8 @@ export default function DashboardPage() {
                                   service.scans[0].status === "SUCCESS"
                                     ? "bg-emerald-500"
                                     : service.scans[0].status.includes("FAILED")
-                                    ? "bg-red-500"
-                                    : "bg-blue-500 animate-pulse"
+                                      ? "bg-red-500"
+                                      : "bg-blue-500 animate-pulse"
                                 }`}
                               />
                             </Tooltip>

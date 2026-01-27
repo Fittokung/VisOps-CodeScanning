@@ -1,317 +1,273 @@
-// worker/index.ts
-/**
- * RabbitMQ Worker Service
- *
- * This is a standalone Node.js worker that runs separately from Next.js.
- * It consumes scan jobs from RabbitMQ and triggers GitLab CI/CD pipelines.
- *
- * Run with: npx tsx worker/index.ts
- * Or in production: node dist/worker/index.js
- */
+// ✅ 1. ใส่บรรทัดนี้ไว้บนสุด เพื่อให้ Worker อ่านค่าจาก .env ได้
+import "dotenv/config";
 
-import amqplib, { ChannelModel, Channel, ConsumeMessage } from "amqplib";
+import amqp, { Channel, ConsumeMessage } from "amqplib";
+import axios from "axios";
+import { PrismaClient } from "@prisma/client";
 import {
   ScanJob,
-  JobResult,
-  QUEUE_NAME,
-  RESULT_QUEUE,
+  BUILD_QUEUE_NAME,
+  SCAN_QUEUE_NAME,
   DEAD_LETTER_QUEUE,
+  RESULT_QUEUE,
 } from "../lib/queue/types";
 
-// Configuration
+// --- Configuration ---
 const RABBITMQ_URL = process.env.RABBITMQ_URL || "amqp://localhost:5672";
+// ✅ เช็คให้ชัวร์ว่า URL มี /api/v4 ต่อท้าย
 const GITLAB_API_URL =
   process.env.GITLAB_API_URL || "https://gitlab.com/api/v4";
-const GITLAB_PROJECT_ID = process.env.GITLAB_PROJECT_ID;
 const GITLAB_TRIGGER_TOKEN = process.env.GITLAB_TRIGGER_TOKEN;
-const DATABASE_URL = process.env.DATABASE_URL;
+// ✅ ใช้ ID 141 ตามที่คุณระบุ (ถ้าจะเปลี่ยนให้ไปแก้ใน .env หรือแก้ตรงนี้)
+const GITLAB_PROJECT_ID = process.env.GITLAB_PROJECT_ID || "141";
 
-// Worker state
-let connection: ChannelModel | null = null;
-let channel: Channel | null = null;
-let isShuttingDown = false;
+// Debug: เช็คว่า Token มาจริงไหม (จะแสดงแค่ 4 ตัวท้าย)
+if (!GITLAB_TRIGGER_TOKEN) {
+  console.error("❌ CRITICAL: GITLAB_TRIGGER_TOKEN is missing in .env");
+} else {
+  console.log(`✅ Loaded Trigger Token: ...${GITLAB_TRIGGER_TOKEN.slice(-4)}`);
+}
 
-/**
- * Initialize worker connection
- */
-async function connect(): Promise<void> {
+const prisma = new PrismaClient();
+let connection: any = null;
+
+async function startWorker() {
+  console.log("🚀 Starting VisScan Multi-Lane Worker...");
+  console.log(`   - Target Project ID: ${GITLAB_PROJECT_ID}`); // Show Project ID
+  console.log(`   - Build Lane: 4 concurrent jobs`);
+  console.log(`   - Scan Lane:  6 concurrent jobs`);
+
   try {
-    console.log("[Worker] Connecting to RabbitMQ...");
-    const conn = await amqplib.connect(RABBITMQ_URL);
+    const conn = (await amqp.connect(RABBITMQ_URL)) as any;
     connection = conn;
-    const ch = await conn.createChannel();
-    channel = ch;
 
-    // Set prefetch to 1 for fair dispatch
-    await ch.prefetch(1);
-
-    // Assert queues
-    await ch.assertQueue(DEAD_LETTER_QUEUE, { durable: true });
-    await ch.assertQueue(RESULT_QUEUE, { durable: true });
-    await ch.assertQueue(QUEUE_NAME, {
-      durable: true,
-      deadLetterExchange: "",
-      deadLetterRoutingKey: DEAD_LETTER_QUEUE,
-      arguments: { "x-max-priority": 10 },
-    });
-
-    // Handle connection events
-    conn.on("close", () => {
-      if (!isShuttingDown) {
-        console.log("[Worker] Connection lost, reconnecting...");
-        setTimeout(connect, 5000);
-      }
-    });
-
-    conn.on("error", (err: Error) => {
-      console.error("[Worker] Connection error:", err);
-    });
-
-    console.log("[Worker] Connected successfully");
-  } catch (error) {
-    console.error("[Worker] Failed to connect:", error);
-    setTimeout(connect, 5000);
-  }
-}
-
-/**
- * Process a scan job
- */
-async function processJob(job: ScanJob): Promise<JobResult> {
-  console.log(`[Worker] Processing job ${job.id} (${job.type})`);
-
-  const result: JobResult = {
-    jobId: job.id,
-    scanHistoryId: job.scanHistoryId,
-    status: "SUCCESS",
-    vulnCritical: 0,
-    vulnHigh: 0,
-    vulnMedium: 0,
-    vulnLow: 0,
-    completedAt: new Date().toISOString(),
-  };
-
-  try {
-    // Update scan status to RUNNING
-    await updateScanStatus(job.scanHistoryId, "RUNNING");
-
-    // Trigger GitLab pipeline
-    const pipelineId = await triggerGitLabPipeline(job);
-
-    if (!pipelineId) {
-      throw new Error("Failed to trigger pipeline");
-    }
-
-    // Poll pipeline status until completion
-    const pipelineResult = await waitForPipelineCompletion(pipelineId);
-
-    // Parse results
-    result.status = pipelineResult.success ? "SUCCESS" : "FAILED_BUILD";
-    result.vulnCritical = pipelineResult.vulnerabilities?.critical || 0;
-    result.vulnHigh = pipelineResult.vulnerabilities?.high || 0;
-    result.vulnMedium = pipelineResult.vulnerabilities?.medium || 0;
-    result.vulnLow = pipelineResult.vulnerabilities?.low || 0;
-    result.reportJson = pipelineResult.report;
-    result.buildLogs = pipelineResult.logs;
-
-    // Check for security failures
-    if (result.vulnCritical > 0) {
-      result.status = "FAILED_SECURITY";
-    }
-  } catch (error: any) {
-    console.error(`[Worker] Job ${job.id} failed:`, error);
-    result.status = "FAILED_BUILD";
-    result.errorMessage = error.message;
-  }
-
-  return result;
-}
-
-/**
- * Trigger GitLab CI/CD pipeline
- */
-async function triggerGitLabPipeline(job: ScanJob): Promise<string | null> {
-  try {
-    const response = await fetch(
-      `${GITLAB_API_URL}/projects/${GITLAB_PROJECT_ID}/trigger/pipeline`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          token: GITLAB_TRIGGER_TOKEN,
-          ref: "main",
-          variables: {
-            SCAN_ID: job.scanHistoryId,
-            REPO_URL: job.repoUrl,
-            CONTEXT_PATH: job.contextPath,
-            IMAGE_NAME: job.imageName || "",
-            IMAGE_TAG: job.imageTag || "latest",
-            SCAN_MODE: job.type,
-            GIT_TOKEN: job.gitToken || "",
-            DOCKER_USER: job.dockerUser || "",
-            DOCKER_TOKEN: job.dockerToken || "",
-            CUSTOM_DOCKERFILE: job.customDockerfile || "",
-          },
-        }),
-      }
+    conn.on("error", (err: any) =>
+      console.error("[Worker] Connection error:", err),
     );
+    conn.on("close", () => {
+      console.warn("[Worker] Connection closed, reconnecting...");
+      setTimeout(startWorker, 5000);
+    });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`Pipeline trigger failed: ${error.message}`);
-    }
+    console.log("[Worker] Connected to RabbitMQ");
 
-    const data = await response.json();
-    return data.id?.toString();
+    // --- Channels ---
+    const buildChannel = (await conn.createChannel()) as any;
+    await setupQueue(buildChannel, BUILD_QUEUE_NAME);
+    await buildChannel.prefetch(4);
+    buildChannel.consume(BUILD_QUEUE_NAME, (msg: ConsumeMessage | null) => {
+      if (msg) handleMessage(msg, buildChannel);
+    });
+
+    const scanChannel = (await conn.createChannel()) as any;
+    await setupQueue(scanChannel, SCAN_QUEUE_NAME);
+    await scanChannel.prefetch(6);
+    scanChannel.consume(SCAN_QUEUE_NAME, (msg: ConsumeMessage | null) => {
+      if (msg) handleMessage(msg, scanChannel);
+    });
   } catch (error) {
-    console.error("[Worker] Failed to trigger pipeline:", error);
-    return null;
+    console.error("[Worker] Failed to start:", error);
+    setTimeout(startWorker, 5000);
   }
 }
 
-/**
- * Wait for pipeline completion
- */
-async function waitForPipelineCompletion(pipelineId: string): Promise<{
-  success: boolean;
-  vulnerabilities?: {
-    critical: number;
-    high: number;
-    medium: number;
-    low: number;
-  };
-  report?: object;
-  logs?: string;
-}> {
-  const maxAttempts = 120; // 10 minutes with 5s intervals
-  let attempts = 0;
-
-  while (attempts < maxAttempts) {
-    try {
-      const response = await fetch(
-        `${GITLAB_API_URL}/projects/${GITLAB_PROJECT_ID}/pipelines/${pipelineId}`,
-        {
-          headers: {
-            "PRIVATE-TOKEN": process.env.GITLAB_ACCESS_TOKEN || "",
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch pipeline status");
-      }
-
-      const pipeline = await response.json();
-
-      if (["success", "failed", "canceled"].includes(pipeline.status)) {
-        // Fetch artifacts/results
-        return {
-          success: pipeline.status === "success",
-          // TODO: Parse actual vulnerability results from artifacts
-          vulnerabilities: { critical: 0, high: 0, medium: 0, low: 0 },
-        };
-      }
-
-      // Wait before next poll
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-      attempts++;
-    } catch (error) {
-      console.error("[Worker] Pipeline poll error:", error);
-      attempts++;
-    }
-  }
-
-  throw new Error("Pipeline timeout");
+async function setupQueue(ch: Channel, queueName: string) {
+  await ch.assertQueue(DEAD_LETTER_QUEUE, { durable: true });
+  await ch.assertQueue(RESULT_QUEUE, { durable: true });
+  await ch.assertQueue(queueName, {
+    durable: true,
+    deadLetterExchange: "",
+    deadLetterRoutingKey: DEAD_LETTER_QUEUE,
+    arguments: { "x-max-priority": 10 },
+  });
 }
 
-/**
- * Update scan status in database
- */
-async function updateScanStatus(
-  scanHistoryId: string,
-  status: string
-): Promise<void> {
-  // TODO: Use Prisma or direct database connection
-  console.log(`[Worker] Updating scan ${scanHistoryId} status to ${status}`);
-}
+async function handleMessage(msg: ConsumeMessage, ch: Channel) {
+  const jobContent = msg.content.toString();
+  let job: ScanJob;
 
-/**
- * Start consuming jobs
- */
-async function startConsuming(): Promise<void> {
-  if (!channel) {
-    console.error("[Worker] No channel available");
+  try {
+    job = JSON.parse(jobContent);
+  } catch (e) {
+    console.error("Failed to parse job JSON", e);
+    ch.nack(msg, false, false);
     return;
   }
 
-  console.log("[Worker] Starting to consume jobs...");
-
-  channel.consume(
-    QUEUE_NAME,
-    async (msg: ConsumeMessage | null) => {
-      if (!msg || !channel) return;
-
-      try {
-        const job: ScanJob = JSON.parse(msg.content.toString());
-        console.log(`[Worker] Received job ${job.id}`);
-
-        // Process the job
-        const result = await processJob(job);
-
-        // Publish result
-        channel.sendToQueue(RESULT_QUEUE, Buffer.from(JSON.stringify(result)), {
-          persistent: true,
-        });
-
-        // Update database
-        await updateScanStatus(job.scanHistoryId, result.status);
-
-        // Acknowledge the message
-        channel.ack(msg);
-        console.log(
-          `[Worker] Job ${job.id} completed with status ${result.status}`
-        );
-      } catch (error: any) {
-        console.error("[Worker] Job processing error:", error);
-
-        // Reject and requeue on transient errors, or send to DLQ
-        const requeue = error.transient === true;
-        channel.nack(msg, false, requeue);
-      }
-    },
-    { noAck: false }
-  );
-}
-
-/**
- * Graceful shutdown
- */
-async function shutdown(): Promise<void> {
-  console.log("[Worker] Shutting down...");
-  isShuttingDown = true;
+  console.log(`[Processing] Job ${job.id} (${job.type})`);
 
   try {
-    if (channel) await channel.close();
-    if (connection) await connection.close();
-  } catch (error) {
-    console.error("[Worker] Error during shutdown:", error);
+    await prisma.scanHistory.update({
+      where: { id: job.scanHistoryId },
+      data: { status: "RUNNING" },
+    });
+
+    const pipelineId = await triggerGitLab(job);
+
+    await prisma.scanHistory.update({
+      where: { id: job.scanHistoryId },
+      data: {
+        pipelineId: String(pipelineId),
+        scanId: String(pipelineId),
+      },
+    });
+
+    console.log(`✅ Job ${job.id} triggered pipeline ${pipelineId}`);
+    ch.ack(msg);
+  } catch (error: any) {
+    console.error(`❌ Job ${job.id} failed:`, error.message);
+
+    // Debug Error จาก GitLab
+    if (axios.isAxiosError(error) && error.response) {
+      console.error(
+        "🔴 GitLab Response Data:",
+        JSON.stringify(error.response.data, null, 2),
+      );
+    }
+
+    try {
+      await prisma.scanHistory.update({
+        where: { id: job.scanHistoryId },
+        data: { status: "FAILED_TRIGGER", errorMessage: error.message },
+      });
+    } catch (dbError) {
+      console.error("Failed to update DB status:", dbError);
+    }
+    ch.ack(msg);
   }
-
-  process.exit(0);
 }
 
-// Handle signals
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
+async function triggerGitLab(job: ScanJob): Promise<number> {
+  const projectId = GITLAB_PROJECT_ID;
 
-// Main
-async function main(): Promise<void> {
-  console.log("[Worker] Starting scan worker...");
+  // สร้างชื่อ Project สวยๆ จาก URL (เอาไว้แสดงผล)
+  const projectPath = extractProjectPath(job.repoUrl);
 
-  await connect();
-  await startConsuming();
+  console.log(`[Debug] Triggering GitLab Project ID: ${projectId}`);
 
-  console.log("[Worker] Worker is running. Press Ctrl+C to stop.");
+  // ✅ แก้ไข: เพิ่มตัวแปรที่ขาดหายไป (USER_REPO_URL, PROJECT_NAME, FRONTEND_USER)
+  const variables: Record<string, string> = {
+    // --- ตัวแปรบังคับ (Critical) ---
+    USER_REPO_URL: job.repoUrl, // 👈 ตัวนี้สำคัญสุด! ถ้าไม่มีคือพัง (exit 1)
+
+    // --- ตัวแปรสำหรับ Logic ---
+    SCAN_MODE: job.type === "SCAN_AND_BUILD" ? "SCAN_AND_BUILD" : "SCAN_ONLY",
+    CONTEXT_PATH: job.contextPath,
+    IMAGE_TAG: job.imageTag || "latest",
+    SCAN_HISTORY_ID: job.scanHistoryId,
+
+    // --- ตัวแปรสำหรับ Credentials ---
+    GIT_TOKEN: job.gitToken || "",
+    DOCKER_PASSWORD: job.dockerToken || "",
+    DOCKER_USER: job.dockerUser || "",
+
+    // --- ตัวแปรสำหรับแสดงผลชื่อ Pipeline (Display) ---
+    PROJECT_NAME: projectPath, // 👈 แก้ชื่อหาย
+    FRONTEND_USER: job.userId, // 👈 แก้ "by ..." หาย
+    USER_TAG: job.imageTag || "latest",
+  };
+
+  if (job.imageName) variables.IMAGE_NAME = job.imageName;
+  if (job.customDockerfile) variables.CUSTOM_DOCKERFILE = job.customDockerfile;
+
+  try {
+    const response = await axios.post(
+      `${GITLAB_API_URL}/projects/${projectId}/trigger/pipeline`,
+      {
+        variables: variables,
+      },
+      {
+        params: {
+          token: GITLAB_TRIGGER_TOKEN,
+          ref: "main",
+        },
+      },
+    );
+    return response.data.id;
+  } catch (error: any) {
+    console.error(`❌ Failed URL: ${error.config?.url}`);
+    throw error;
+  }
 }
 
-main().catch(console.error);
+function extractProjectPath(url: string): string {
+  let cleanUrl = url.replace(/^https?:\/\//, "");
+  cleanUrl = cleanUrl.substring(cleanUrl.indexOf("/") + 1);
+  return cleanUrl.replace(/\.git$/, "");
+}
+
+
+// ... (keep existing imports)
+
+const GITLAB_TOKEN = process.env.GITLAB_TOKEN;
+
+// ... (keep existing setup)
+
+// ✅ Increase polling interval to avoid rate limits
+const POLLING_INTERVAL = 10000;
+
+async function startPoller() {
+  console.log("🔄 Starting Status Poller...");
+  setInterval(pollRunningScans, POLLING_INTERVAL);
+}
+
+async function pollRunningScans() {
+  try {
+    const runningScans = await prisma.scanHistory.findMany({
+      where: {
+        status: "RUNNING",
+        AND: [
+            { pipelineId: { not: { equals: null } } },
+            // Exclude waiting/pending IDs generated locally
+            { pipelineId: { not: { startsWith: "WAITING" } } }
+        ]
+      },
+      select: { id: true, pipelineId: true }
+    });
+
+    if (runningScans.length === 0) return;
+
+    console.log(`[Poller] Checking ${runningScans.length} running scans...`);
+
+    for (const scan of runningScans) {
+        if (!scan.pipelineId) continue;
+        
+        try {
+            const url = `${GITLAB_API_URL}/projects/${GITLAB_PROJECT_ID}/pipelines/${scan.pipelineId}`;
+            const res = await axios.get(url, {
+                headers: { "PRIVATE-TOKEN": GITLAB_TOKEN }
+            });
+            
+            const glStatus = res.data.status; // success, failed, running, etc.
+            let newStatus = "";
+            
+            if (glStatus === "success") newStatus = "SUCCESS";
+            else if (glStatus === "failed") newStatus = "FAILED";
+            else if (glStatus === "canceled") newStatus = "CANCELLED";
+            else if (glStatus === "skipped") newStatus = "FAILED";
+            
+            if (newStatus && newStatus !== "RUNNING") {
+                 console.log(`[Poller] Scan ${scan.id} (Pipeline ${scan.pipelineId}) changed to ${newStatus}`);
+                 
+                 // TODO: Fetch report artifacts here if possible
+                 
+                 await prisma.scanHistory.update({
+                     where: { id: scan.id },
+                     data: { 
+                         status: newStatus,
+                         completedAt: new Date()
+                     }
+                 });
+            }
+        } catch (error: any) {
+            console.error(`[Poller] Failed to check pipeline ${scan.pipelineId}:`, error.message);
+        }
+    }
+  } catch (error) {
+      console.error("[Poller] Error:", error);
+  }
+}
+
+startWorker();
+startPoller();
+

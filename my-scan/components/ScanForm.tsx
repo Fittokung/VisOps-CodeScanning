@@ -207,12 +207,12 @@ function ScanFormContent({ buildMode }: Props) {
         const creds = data.credentials || [];
         setCredentials(creds);
         const defGit = creds.find(
-          (c: any) => c.provider === "GITHUB" && c.isDefault
+          (c: any) => c.provider === "GITHUB" && c.isDefault,
         );
         if (defGit) setSelectedGitId(defGit.id);
         if (buildMode) {
           const defDocker = creds.find(
-            (c: any) => c.provider === "DOCKER" && c.isDefault
+            (c: any) => c.provider === "DOCKER" && c.isDefault,
           );
           if (defDocker) setSelectedDockerId(defDocker.id);
         }
@@ -269,10 +269,10 @@ function ScanFormContent({ buildMode }: Props) {
       });
 
       const scanData = await scanRes.json();
-      if (scanRes.ok && scanData.pipelineId) {
-        router.push(`/scan/${scanData.pipelineId}`);
+      if (scanRes.ok && scanData.scanId) {
+        router.push(`/scan/${scanData.scanId}`);
       } else {
-        throw new Error(scanData.message);
+        throw new Error(scanData.message || "Failed to start scan");
       }
     } catch (err: any) {
       alert("Error: " + err.message);

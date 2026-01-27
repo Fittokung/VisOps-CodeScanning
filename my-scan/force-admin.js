@@ -1,9 +1,10 @@
 // force-admin.js
+// command: node force-admin.js
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
 async function main() {
-  const email = "nue0742@gmail.com"; // แก้เป็น Email ของคุณ
+  const email = "...@gmail.com"; // your email
   const user = await prisma.user.update({
     where: { email: email },
     data: {

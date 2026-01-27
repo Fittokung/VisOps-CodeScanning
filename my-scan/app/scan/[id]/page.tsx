@@ -23,12 +23,19 @@ export default async function ScanPage(props: Props) {
 
   try {
     const scanData = await prisma.scanHistory.findFirst({
-      where: { pipelineId: id },
+      where: {
+        OR: [
+          { id: id }, // รองรับกรณี URL เป็น UUID (เช่น /scan/550e8400-...)
+          { pipelineId: id }, // รองรับกรณี URL เป็น Pipeline ID
+        ],
+      },
       select: {
+        id: true, // ✅ ดึง id (UUID) ออกมาด้วยเพื่อส่งให้ PipelineView
         status: true,
         scanMode: true,
         imageTag: true,
         createdAt: true,
+        pipelineId: true, // ✅ ดึง pipelineId ออกมาใช้แสดงผล
         service: {
           select: {
             serviceName: true,
@@ -45,7 +52,7 @@ export default async function ScanPage(props: Props) {
     });
 
     if (!scanData) {
-      console.error("❌ No scan data found for pipeline:", id);
+      console.error("❌ No scan data found for ID:", id);
       notFound();
     }
 
@@ -85,7 +92,8 @@ export default async function ScanPage(props: Props) {
                 <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-slate-500">
                   <div className="flex items-center gap-1.5 font-mono bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                     <Hash size={12} className="text-slate-400" />
-                    {id.substring(0, 8)}
+                    {/* ใช้ pipelineId ถ้ามี ถ้าไม่มีใช้ id แทน */}
+                    {(scanData.pipelineId || scanData.id).substring(0, 8)}
                   </div>
 
                   <div className="flex items-center gap-1.5">
@@ -107,20 +115,12 @@ export default async function ScanPage(props: Props) {
                   </div>
                 </div>
               </div>
-
-              {/* Status Badge (Placeholder for logic if needed) */}
-              {/* <div className="text-right hidden sm:block">
-                 <div className="text-xs text-slate-400 mb-1">Started</div>
-                 <div className="font-mono text-sm text-slate-700">
-                    {new Date(scanData.createdAt).toLocaleString()}
-                 </div>
-              </div> */}
             </div>
           </div>
 
           {/* 1. Pipeline View (Graph & Table) */}
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-            <PipelineView scanId={id} scanMode={scanMode} />
+            <PipelineView scanId={scanData.id} scanMode={scanMode} />
           </div>
 
           {/* 2. Monorepo Action (Add more services) */}

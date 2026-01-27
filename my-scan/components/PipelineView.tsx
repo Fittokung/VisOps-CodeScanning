@@ -1,13 +1,12 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Loader2, AlertCircle, XCircle, GitCompare } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import ConfirmBuildButton from "./ReleaseButton";
 import { Run, ComparisonData } from "./pipeline/types";
 import { QueuedState, CancelledState } from "./pipeline/StatusViews";
-// import { CancelButton } from "./pipeline/CancelButton";
 import { StatusHeader } from "./pipeline/StatusHeader";
 import { SummaryCards } from "./pipeline/SummaryCards";
 import { LogsPanel } from "./pipeline/LogsPanel";
@@ -31,10 +30,8 @@ export default function PipelineView({
   const [isCancelling, setIsCancelling] = useState(false);
   const [showCompareButton, setShowCompareButton] = useState(false);
 
-  // Log scanMode for debugging
-  console.log("🔍 PipelineView received scanMode:", scanMode);
-
-  async function fetchComparison(serviceId: string) {
+  // Helper to fetch comparison data
+  const fetchComparison = useCallback(async (serviceId: string) => {
     try {
       const res = await fetch(`/api/scan/compare/${serviceId}`);
       if (res.ok) {
@@ -44,36 +41,30 @@ export default function PipelineView({
     } catch (err) {
       console.error("Failed to fetch comparison:", err);
     }
-  }
+  }, []);
 
-  async function fetchStatus() {
+  // ✅ 1. ฟังก์ชันโหลดข้อมูลปกติ (Load Local Data)
+  const fetchStatus = useCallback(async () => {
     try {
       if (!scanId) return;
-      // ✅ เพิ่ม cache busting เพื่อให้ได้ข้อมูล realtime ล่าสุดเสมอ
-      const res = await fetch(`/api/scan/status/${scanId}?_t=${Date.now()}`, {
-        headers: {
-          "Cache-Control": "no-store, no-cache, must-revalidate",
-          Pragma: "no-cache",
-        },
+      const res = await fetch(`/api/scan/${scanId}?_t=${Date.now()}`, {
+        headers: { "Cache-Control": "no-store" },
         cache: "no-store",
       });
 
       if (res.status === 404) {
         const errorData = await res.json();
-        setError(errorData.details || "Pipeline not found in GitLab");
+        setError(errorData.details || "Pipeline not found");
         setIsLoading(false);
         return;
       }
 
-      if (!res.ok) {
-        setError("Failed to fetch pipeline status");
-        setIsLoading(false);
-        return;
-      }
+      if (!res.ok) return;
 
       const data = await res.json();
       setRun(data);
       setError(null);
+      setIsLoading(false);
 
       if (
         data.serviceId &&
@@ -85,43 +76,70 @@ export default function PipelineView({
       }
     } catch (e) {
       console.error("Polling Error:", e);
-      setError("An error occurred while fetching pipeline status");
-    } finally {
-      setIsLoading(false);
     }
-  }
+  }, [scanId, fetchComparison]);
 
+  // ✅ 2. ฟังก์ชัน Auto-Sync (เรียก API POST เพื่อดึงจาก GitLab)
+  const autoSyncGitLab = useCallback(async () => {
+    try {
+      // เรียก API ที่เราเพิ่งรวมไฟล์ไป (POST /api/scan/[id])
+      // เพื่อสั่งให้ Backend ไปถาม GitLab เดี๋ยวนี้
+      await fetch(`/api/scan/${scanId}`, { method: "POST" });
+
+      // พอถามเสร็จ ก็โหลดข้อมูลล่าสุดมาโชว์
+      await fetchStatus();
+    } catch (e) {
+      console.error("Auto-sync failed:", e);
+    }
+  }, [scanId, fetchStatus]);
+
+  // ✅ 3. The "Automator" Effect (หัวใจสำคัญ)
   useEffect(() => {
+    // โหลดครั้งแรกทันทีที่เข้าหน้า
     fetchStatus();
-    // ✅ ลด polling interval เหลือ 2000ms (2s) เพื่อให้ realtime มากขึ้น และ sync กับ dashboard
+
+    // ตั้งเวลาทำงานทุกๆ 3 วินาที
     const interval = setInterval(() => {
       const status = run?.status?.toUpperCase();
-      if (
-        status !== "SUCCESS" &&
-        status !== "FAILED" &&
-        status !== "BLOCKED" &&
-        status !== "CANCELED" &&
-        status !== "CANCELLED" &&
-        status !== "SKIPPED"
-      ) {
+
+      // เช็คว่าจบงานหรือยัง?
+      const isFinalState =
+        status === "SUCCESS" ||
+        status === "FAILED" ||
+        status === "BLOCKED" ||
+        status === "CANCELED" ||
+        status === "CANCELLED" ||
+        status === "SKIPPED" ||
+        status === "FAILED_SECURITY";
+
+      if (!isFinalState) {
+        // ✨ ถ้ายังไม่จบ -> สั่ง Sync อัตโนมัติเลย!
+        console.log("🔄 Auto-syncing with GitLab...");
+        autoSyncGitLab();
+      } else {
+        // ถ้าจบแล้ว -> หยุดเรียก (เพื่อประหยัดทรัพยากร)
+        // แต่ยังเรียก fetchStatus ธรรมดาเผื่อมีการอัปเดตหน้าจออื่น
         fetchStatus();
       }
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [scanId, run?.status]);
+    }, 3000);
 
-  // Check for compare intent when scan completes
+    // Clear timer เมื่อออกจากหน้า
+    return () => clearInterval(interval);
+  }, [fetchStatus, autoSyncGitLab, run?.status]);
+
+  // Check for compare intent
   useEffect(() => {
+    const status = run?.status;
     if (
-      run?.status === "SUCCESS" ||
-      run?.status === "PASSED" ||
-      run?.status === "BLOCKED" ||
-      run?.status === "FAILED_SECURITY"
+      status === "SUCCESS" ||
+      status === "PASSED" ||
+      status === "BLOCKED" ||
+      status === "FAILED_SECURITY"
     ) {
       const compareIntent = sessionStorage.getItem(
-        `compare_after_scan_${scanId}`
+        `compare_after_scan_${scanId}`,
       );
-      if (compareIntent && run.serviceId) {
+      if (compareIntent && run?.serviceId) {
         setShowCompareButton(true);
       }
     }
@@ -140,7 +158,6 @@ export default function PipelineView({
 
   const handleViewComparison = () => {
     if (run?.serviceId) {
-      // Clear the intent
       sessionStorage.removeItem(`compare_after_scan_${scanId}`);
       router.push(`/scan/compare?serviceId=${run.serviceId}`);
     }
@@ -148,28 +165,11 @@ export default function PipelineView({
 
   const handleCancelScan = async () => {
     if (!confirm("Are you sure you want to cancel this scan?")) return;
-
     setIsCancelling(true);
     try {
-      const res = await fetch(`/api/scan/cancel/${scanId}`, {
-        method: "POST",
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || "Failed to cancel scan");
-      }
-
-      // Fetch updated status after cancellation
-      await fetchStatus();
-
-      // Show success message
-      alert("Scan cancelled successfully. Redirecting to dashboard...");
-
-      // Redirect to dashboard after 1 second
-      setTimeout(() => {
-        window.location.href = "/dashboard";
-      }, 1000);
+      const res = await fetch(`/api/scan/cancel/${scanId}`, { method: "POST" });
+      if (!res.ok) throw new Error("Failed to cancel scan");
+      await autoSyncGitLab(); // Sync ทันทีหลังกดยกเลิก
     } catch (err: any) {
       console.error("Cancel error:", err);
       alert(err.message || "Failed to cancel scan");
@@ -178,18 +178,22 @@ export default function PipelineView({
     }
   };
 
+  // --- RENDER STATES ---
+
   if (isLoading && !run) {
     return (
-      <div className="flex items-center justify-center p-6">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-        <span className="ml-2 text-gray-500">Loading Report...</span>
+      <div className="flex flex-col items-center justify-center p-12 min-h-[50vh]">
+        <Loader2 className="w-10 h-10 animate-spin text-blue-600 mb-4" />
+        <h3 className="text-lg font-medium text-gray-700">
+          Connecting to Pipeline...
+        </h3>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+      <div className="bg-red-50 border border-red-200 rounded-lg p-6 m-6">
         <div className="flex items-start gap-3">
           <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
           <div>
@@ -197,52 +201,47 @@ export default function PipelineView({
               Pipeline Not Found
             </h3>
             <p className="text-red-700 mb-3">{error}</p>
-            <p className="text-sm text-red-600">
-              This pipeline (ID:{" "}
-              <span className="font-mono font-semibold">{scanId}</span>) may
-              have been deleted from GitLab or the project configuration is
-              incorrect.
-            </p>
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="text-sm font-medium text-red-700 hover:text-red-900 underline"
+            >
+              Return to Dashboard
+            </button>
           </div>
         </div>
       </div>
     );
   }
 
-  if (!run)
-    return (
-      <div className="p-6 text-center text-gray-500">Initializing Scan...</div>
-    );
+  if (!run) return null;
 
-  const isQueued = run.status === "QUEUED" || (run as any).isQueued;
-  const isScanning = run.status === "RUNNING" || run.status === "PENDING";
+  const isQueued =
+    run.status === "QUEUED" ||
+    run.status === "PENDING" ||
+    (run as any).isQueued;
+  const isScanning = run.status === "RUNNING" || run.status === "PROCESSING";
   const isBlocked = run.status === "BLOCKED";
   const isSuccess = run.status === "SUCCESS";
   const isCancelled = run.status === "CANCELLED" || run.status === "CANCELED";
   const isCancellable = isQueued || isScanning;
-  const isScanOnly = scanMode === "SCAN_ONLY"; // ตรวจสอบว่าเป็น SCAN_ONLY หรือไม่
-
-  console.log("🎯 PipelineView state:", {
-    scanMode,
-    isScanOnly,
-    isSuccess,
-    isBlocked,
-    shouldShowRelease: !isScanOnly && isSuccess && !isBlocked,
-  });
+  const isScanOnly = scanMode === "SCAN_ONLY" || run.scanMode === "SCAN_ONLY";
 
   const totalFindings =
     run.counts.critical + run.counts.high + run.counts.medium + run.counts.low;
-
   const gitleaksCount = Array.isArray(run.rawReports?.gitleaks)
     ? run.rawReports.gitleaks.length
     : 0;
-  const isHealthy =
-    isSuccess &&
-    run.counts.critical === 0 &&
-    run.counts.high === 0 &&
-    run.counts.medium === 0 &&
-    run.counts.low === 0 &&
-    gitleaksCount === 0;
+  const isHealthy = isSuccess && totalFindings === 0 && gitleaksCount === 0;
+
+  console.log("[PipelineView Debug]", {
+      propScanMode: scanMode,
+      dbScanMode: run.scanMode,
+      status: run.status,
+      isScanOnly,
+      isSuccess,
+      isBlocked,
+      renderButton: !isScanOnly && isSuccess && !isBlocked
+  });
 
   if (isQueued) {
     return (
@@ -255,69 +254,57 @@ export default function PipelineView({
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-6 font-sans">
-      {/* Cancel Button - Always show when cancellable */}
-      {isCancellable && (
-        <div className="flex justify-end">
+    <div className="max-w-6xl mx-auto p-4 md:p-6 space-y-6 font-sans animate-in fade-in duration-500">
+      {/* Action Bar: เหลือแค่ปุ่ม Cancel (ปุ่ม Sync หายไปแล้ว เพราะระบบทำให้เอง) */}
+      <div className="flex justify-end gap-2">
+        {isCancellable && (
           <button
             onClick={handleCancelScan}
             disabled={isCancelling}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition"
+            className="px-4 py-2 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition text-sm font-medium shadow-sm"
           >
             {isCancelling ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Cancelling...
-              </>
+              <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <>
-                <XCircle className="w-4 h-4" />
-                Cancel Scan
-              </>
+              <XCircle className="w-4 h-4" />
             )}
+            {isCancelling ? "Stopping..." : "Cancel Scan"}
+          </button>
+        )}
+      </div>
+
+      {showCompareButton && (
+        <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-6 shadow-sm flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-white rounded-full shadow-sm">
+              <GitCompare className="w-6 h-6 text-orange-600" />
+            </div>
+            <div>
+              <h3 className="font-bold text-gray-900">Scan Complete</h3>
+              <p className="text-gray-600 text-sm">
+                Compare with previous results available
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleViewComparison}
+            className="px-5 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium flex items-center gap-2 transition shadow-sm"
+          >
+            <GitCompare className="w-4 h-4" />
+            Compare Results
           </button>
         </div>
       )}
 
-      {/* Compare Button - Show when scan completes and compare intent exists */}
-      {showCompareButton && (
-        <div className="animate-in fade-in slide-in-from-top-4 duration-500">
-          <div className="bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-200 rounded-xl p-6 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-orange-100 rounded-lg">
-                  <GitCompare className="w-6 h-6 text-orange-600" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-gray-900 text-lg">
-                    Scan Complete!
-                  </h3>
-                  <p className="text-gray-600 text-sm mt-1">
-                    View comparison with previous scan to see improvements and
-                    changes
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={handleViewComparison}
-                className="px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-semibold flex items-center gap-2 transition shadow-md hover:shadow-lg"
-              >
-                <GitCompare className="w-5 h-5" />
-                View Comparison
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* ปุ่ม Release จะโผล่มาเองอัตโนมัติเมื่อ isSuccess เป็นจริง */}
+      {!isScanOnly && (isSuccess || run.status?.toUpperCase() === "MANUAL") && !isBlocked && (
+        <ConfirmBuildButton 
+            scanId={scanId} 
+            status={run.status} 
+            vulnCount={run.counts.critical} 
+            imagePushed={(run as any).imagePushed}
+        />
       )}
-
-      {/* Release Button - ซ่อนสำหรับ SCAN_ONLY mode */}
-      {!isScanOnly && isSuccess && !isBlocked && (
-        <div className="animate-in fade-in slide-in-from-top-4 duration-500">
-          <ConfirmBuildButton scanId={scanId} />
-        </div>
-      )}
-
-      {/* {comparison && <ComparisonSection comparison={comparison} />} */}
 
       {isBlocked && run.criticalVulnerabilities && (
         <CriticalVulnerabilitiesBlock
@@ -349,7 +336,8 @@ export default function PipelineView({
           />
         </div>
 
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-6">
+          {comparison && <ComparisonSection comparison={comparison} />}
           <FindingsTable
             findings={run.findings}
             isScanning={isScanning}

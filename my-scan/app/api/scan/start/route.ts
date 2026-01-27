@@ -1,18 +1,11 @@
-// app/api/scan/start/route.ts
-/**
- * Consolidated Scan Start API
- * - Triggers GitLab CI/CD pipeline
- * - Supports authenticated users with encrypted tokens
- * - Quota enforcement (6 active projects max)
- * - Prevents concurrent scans for same project
- */
-
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/crypto";
 import { checkUserQuota } from "@/lib/quotaManager";
+import { publishScanJob } from "@/lib/queue/publisher";
+import { ScanJob } from "@/lib/queue/types";
 import {
   MAX_SCANS_PER_SERVICE,
   AUTO_CLEANUP_ENABLED,
@@ -32,10 +25,8 @@ export async function POST(req: Request) {
 
     const {
       serviceId,
-      scanMode = "SCAN_AND_BUILD", // Default mode
+      scanMode = "SCAN_AND_BUILD",
       imageTag = "latest",
-      trivyScanMode = "fast", // Trivy scan mode: "fast" or "full"
-      // For manual/test scans (optional)
       repoUrl: manualRepoUrl,
       contextPath: manualContextPath,
       imageName: manualImageName,
@@ -44,134 +35,84 @@ export async function POST(req: Request) {
 
     // Validate scan mode
     if (!["SCAN_ONLY", "SCAN_AND_BUILD"].includes(scanMode)) {
-      return NextResponse.json(
-        { error: "Invalid scan mode. Must be SCAN_ONLY or SCAN_AND_BUILD" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid scan mode" }, { status: 400 });
     }
 
-    // Get user with encrypted tokens (Updated to include new fields)
-    const user = await prisma.user.findUnique({
+    const userProfile = await prisma.user.findUnique({
       where: { id: userId },
       select: {
-        id: true,
-        // Old fields
-        githubPAT: true,
-        githubUsername: true,
-        dockerToken: true,
-        dockerUsername: true,
-        // New fields (Compatible with Settings page)
-        defaultGitToken: true,
-        defaultGitUser: true,
-        defaultDockerToken: true,
-        defaultDockerUser: true,
-        // Org settings
-        isDockerOrganization: true,
-        dockerOrgName: true,
-        isSetupComplete: true,
+        name: true,
+        email: true,
       },
     });
 
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
+    const credentials = await prisma.credential.findMany({
+      where: {
+        userId: userId,
+        isDefault: true,
+      },
+    });
 
-    // Determine which credentials to use (Prioritize new fields, fallback to old)
-    const activeGitToken = user.defaultGitToken || user.githubPAT;
-    const activeGitUser = user.defaultGitUser || user.githubUsername;
-    const activeDockerToken = user.defaultDockerToken || user.dockerToken;
-    const activeDockerUser = user.defaultDockerUser || user.dockerUsername;
+    const gitCred = credentials.find((c) => c.provider === "GITHUB");
+    const dockerCred = credentials.find((c) => c.provider === "DOCKER");
 
-    // Check credentials existence using the resolved values
-    if (!activeGitToken || !activeDockerToken) {
+    if (!gitCred || !dockerCred) {
       return NextResponse.json(
         {
           error:
-            "Missing GitHub or Docker credentials. Please configure them in Settings.",
+            "Missing Default Credentials. Please go to Settings and set default GitHub & Docker accounts.",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     let finalConfig: any = {};
     let projectId: string | undefined;
-    let projectGroupId: string | undefined;
 
-    // Case 1: Scanning existing service (from database)
+    // --- Logic การหา Service หรือ Manual Scan ---
     if (serviceId) {
       const service = await prisma.projectService.findUnique({
         where: { id: serviceId },
-        include: {
-          group: {
-            include: { user: true },
-          },
-        },
+        include: { group: { include: { user: true } } },
       });
 
-      if (!service) {
+      if (!service)
         return NextResponse.json(
           { error: "Service not found" },
-          { status: 404 }
+          { status: 404 },
         );
-      }
-
-      // Verify ownership
-      if (service.group.userId !== userId) {
+      if (service.group.userId !== userId)
         return NextResponse.json({ error: "Access denied" }, { status: 403 });
-      }
 
-      // Check for active scans on this service (prevent concurrent scans)
       const activeScan = await prisma.scanHistory.findFirst({
-        where: {
-          serviceId: serviceId,
-          status: { in: ["QUEUED", "RUNNING"] },
-        },
+        where: { serviceId: serviceId, status: { in: ["QUEUED", "RUNNING"] } },
       });
 
       if (activeScan) {
         return NextResponse.json(
-          {
-            error: "A scan is already in progress for this service",
-            activeScanId: activeScan.id,
-          },
-          { status: 429 }
+          { error: "Scan in progress", activeScanId: activeScan.id },
+          { status: 429 },
         );
       }
 
       projectId = service.id;
-      projectGroupId = service.groupId;
-
       finalConfig = {
         repoUrl: service.group.repoUrl,
         contextPath: service.contextPath || ".",
         imageName: service.imageName,
         projectName: service.group.groupName,
-        customDockerfile: service.dockerfileContent, // Admin override if exists
+        customDockerfile: service.dockerfileContent,
       };
-    }
-    // Case 2: Manual scan (no serviceId)
-    else {
-      // Validate required fields for manual scan
+    } else {
       if (!manualRepoUrl || !manualImageName) {
         return NextResponse.json(
-          { error: "repoUrl and imageName are required for manual scans" },
-          { status: 400 }
+          { error: "repoUrl and imageName required" },
+          { status: 400 },
         );
       }
-
-      // Check quota for new projects
       const quotaCheck = await checkUserQuota(userId);
-      if (!quotaCheck.canCreate) {
-        return NextResponse.json(
-          {
-            error: "Project quota exceeded",
-            message: quotaCheck.error,
-            currentCount: quotaCheck.currentCount,
-            maxCount: quotaCheck.maxAllowed,
-          },
-          { status: 429 }
-        );
-      }
+      if (!quotaCheck.canCreate)
+        return NextResponse.json({ error: "Quota exceeded" }, { status: 429 });
 
       finalConfig = {
         repoUrl: manualRepoUrl,
@@ -180,8 +121,6 @@ export async function POST(req: Request) {
         projectName: manualProjectName || "manual-scan",
       };
 
-      // Auto-create project group and service for manual scans
-      // This tracks them in the database for history
       const newGroup = await prisma.projectGroup.create({
         data: {
           userId,
@@ -190,7 +129,6 @@ export async function POST(req: Request) {
           isActive: true,
         },
       });
-
       const newService = await prisma.projectService.create({
         data: {
           groupId: newGroup.id,
@@ -199,113 +137,19 @@ export async function POST(req: Request) {
           contextPath: finalConfig.contextPath,
         },
       });
-
       projectId = newService.id;
-      projectGroupId = newGroup.id;
     }
 
-    // Decrypt user tokens (Using the resolved active tokens)
-    const githubToken = decrypt(activeGitToken);
-    const dockerToken = decrypt(activeDockerToken);
+    const githubToken = decrypt(gitCred.token);
+    const dockerToken = decrypt(dockerCred.token);
 
-    const frontendUserName =
-      (session.user as any).name ||
-      activeGitUser ||
-      (session.user as any).email ||
-      "Unknown User";
-
-    // Prepare GitLab pipeline variables
-    const variables = [
-      { key: "USER_REPO_URL", value: finalConfig.repoUrl },
-      { key: "BUILD_CONTEXT", value: finalConfig.contextPath },
-      { key: "USER_TAG", value: imageTag },
-      { key: "PROJECT_NAME", value: finalConfig.imageName },
-      { key: "FRONTEND_USER", value: frontendUserName },
-
-      // User credentials (decrypted)
-      { key: "GIT_USERNAME", value: activeGitUser || "" },
-      { key: "GIT_TOKEN", value: githubToken },
-      // Docker credentials - use Organization name if configured
-      {
-        key: "DOCKER_USER",
-        value:
-          user.isDockerOrganization && user.dockerOrgName
-            ? user.dockerOrgName
-            : activeDockerUser || "",
-      },
-      { key: "DOCKER_PASSWORD", value: dockerToken },
-
-      // Backend webhook URL
-      {
-        key: "BACKEND_HOST_URL",
-        value: process.env.NEXT_PUBLIC_BASE_URL || "",
-      },
-
-      // Scan mode
-      { key: "SCAN_MODE", value: scanMode },
-
-      // Trivy scan mode (for GitLab CI variable)
-      { key: "TRIVY_SCAN_MODE", value: trivyScanMode },
-
-      // Custom Dockerfile if provided by admin
-      { key: "CUSTOM_DOCKERFILE", value: finalConfig.customDockerfile || "" },
-    ];
-
-    // Validate GitLab configuration
-    if (
-      !process.env.GITLAB_PROJECT_ID ||
-      !process.env.GITLAB_TOKEN ||
-      !process.env.GITLAB_API_URL
-    ) {
-      throw new Error(
-        "GitLab configuration incomplete. Check environment variables."
-      );
-    }
-
-    // Trigger GitLab pipeline
-    const gitlabRes = await fetch(
-      `${process.env.GITLAB_API_URL}/api/v4/projects/${process.env.GITLAB_PROJECT_ID}/pipeline`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "PRIVATE-TOKEN": process.env.GITLAB_TOKEN,
-        },
-        body: JSON.stringify({
-          ref: "main",
-          variables: variables,
-        }),
-      }
-    );
-
-    const pipelineData = await gitlabRes.json();
-
-    if (!gitlabRes.ok) {
-      console.error("GitLab Pipeline Trigger Failed:", pipelineData);
-
-      if (gitlabRes.status === 401 || gitlabRes.status === 403) {
-        return NextResponse.json(
-          { error: "GitLab authentication failed. Contact administrator." },
-          { status: 500 }
-        );
-      }
-
-      return NextResponse.json(
-        {
-          error: "Failed to start scan",
-          details: pipelineData.message || "Unknown error",
-        },
-        { status: 400 }
-      );
-    }
-
-    // Create scan history record
+    // Create History
     const scanHistory = await prisma.scanHistory.create({
       data: {
-        serviceId: projectId!, // Non-null assertion safe here
+        serviceId: projectId!,
         scanMode: scanMode,
-        scanId: process.env.GITLAB_PROJECT_ID!,
-        pipelineId: pipelineData.id.toString(),
+        scanId: `WAITING-${Date.now()}`,
+        pipelineId: `WAITING-${Date.now()}`,
         imageTag: imageTag,
         status: "QUEUED",
         startedAt: new Date(),
@@ -318,72 +162,87 @@ export async function POST(req: Request) {
       },
     });
 
-    // 🗑️ Auto-cleanup: Keep only last N scans per service
-    if (AUTO_CLEANUP_ENABLED) {
-      const allScans = await prisma.scanHistory.findMany({
-        where: { serviceId: projectId! },
-        orderBy: { startedAt: "desc" },
-        select: { id: true, startedAt: true },
+    // Prepare Job
+    const job: ScanJob = {
+      id: scanHistory.id,
+      type: scanMode === "SCAN_AND_BUILD" ? "SCAN_AND_BUILD" : "SCAN_ONLY",
+      priority: 1,
+      createdAt: new Date().toISOString(),
+      userId,
+
+      username: userProfile?.name || userProfile?.email || "Unknown User",
+
+      serviceId: projectId!,
+      scanHistoryId: scanHistory.id,
+
+      repoUrl: finalConfig.repoUrl,
+      contextPath: finalConfig.contextPath,
+      isPrivate: true,
+
+      imageName: finalConfig.imageName,
+      imageTag: imageTag,
+      customDockerfile: finalConfig.customDockerfile,
+
+      gitToken: githubToken,
+      dockerToken: dockerToken,
+      dockerUser: dockerCred.username,
+    };
+
+    const published = await publishScanJob(job);
+
+    if (!published) {
+      await prisma.scanHistory.update({
+        where: { id: scanHistory.id },
+        data: {
+          status: "FAILED_TRIGGER",
+          errorMessage: "Failed to enqueue job",
+        },
       });
-
-      // Count-based cleanup: Keep only last N scans
-      if (allScans.length > MAX_SCANS_PER_SERVICE) {
-        const scansToDelete = allScans.slice(MAX_SCANS_PER_SERVICE);
-        const deleteIds = scansToDelete.map((s) => s.id);
-
-        await prisma.scanHistory.deleteMany({
-          where: { id: { in: deleteIds } },
-        });
-
-        console.log(
-          `[Scan Cleanup - Count] Deleted ${deleteIds.length} old scans for service ${projectId}. Keeping last ${MAX_SCANS_PER_SERVICE} scans.`
-        );
-      }
-
-      // Age-based cleanup: Delete scans older than MAX_SCAN_AGE_DAYS
-      if (MAX_SCAN_AGE_DAYS > 0) {
-        const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - MAX_SCAN_AGE_DAYS);
-
-        const oldScans = await prisma.scanHistory.findMany({
-          where: {
-            serviceId: projectId!,
-            startedAt: { lt: cutoffDate },
-          },
-          select: { id: true },
-        });
-
-        if (oldScans.length > 0) {
-          const oldScanIds = oldScans.map((s) => s.id);
-
-          await prisma.scanHistory.deleteMany({
-            where: { id: { in: oldScanIds } },
-          });
-
-          console.log(
-            `[Scan Cleanup - Age] Deleted ${oldScans.length} scans older than ${MAX_SCAN_AGE_DAYS} days for service ${projectId}.`
-          );
-        }
-      }
+      throw new Error("Failed to publish job");
     }
 
-    console.log(
-      `[Scan] Pipeline ${pipelineData.id} started for user ${userId}`
-    );
+    if (AUTO_CLEANUP_ENABLED && projectId) {
+      cleanupOldScans(projectId).catch((err) =>
+        console.error("Cleanup error:", err),
+      );
+    }
 
     return NextResponse.json({
       success: true,
       scanId: scanHistory.id,
-      pipelineId: pipelineData.id,
-      webUrl: pipelineData.web_url,
       status: "QUEUED",
-      message: "Scan started successfully. Pipeline is processing...",
+      message: "Job queued successfully",
     });
   } catch (error: any) {
     console.error("[Scan Start Error]:", error);
     return NextResponse.json(
       { error: error.message || "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
+  }
+}
+
+async function cleanupOldScans(serviceId: string) {
+  try {
+    const allScans = await prisma.scanHistory.findMany({
+      where: { serviceId },
+      orderBy: { startedAt: "desc" },
+      select: { id: true, startedAt: true },
+    });
+    if (allScans.length > MAX_SCANS_PER_SERVICE) {
+      const scansToDelete = allScans.slice(MAX_SCANS_PER_SERVICE);
+      await prisma.scanHistory.deleteMany({
+        where: { id: { in: scansToDelete.map((s) => s.id) } },
+      });
+    }
+    if (MAX_SCAN_AGE_DAYS > 0) {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - MAX_SCAN_AGE_DAYS);
+      await prisma.scanHistory.deleteMany({
+        where: { serviceId, startedAt: { lt: cutoffDate } },
+      });
+    }
+  } catch (err) {
+    console.error("Auto cleanup failed:", err);
   }
 }

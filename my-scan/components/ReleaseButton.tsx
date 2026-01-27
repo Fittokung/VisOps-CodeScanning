@@ -1,33 +1,26 @@
 "use client";
-
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { UploadCloud, Loader2, AlertTriangle, Check } from "lucide-react";
 
-export default function ConfirmBuildButton({ scanId }: { scanId: string }) {
-  const [status, setStatus] = useState<string>("loading");
-  const [vulnCount, setVulnCount] = useState(0);
+type Props = {
+  scanId: string;
+  status: string;
+  vulnCount?: number;
+  imagePushed?: boolean;
+};
+
+export default function ConfirmBuildButton({
+  scanId,
+  status,
+  vulnCount = 0,
+  imagePushed = false,
+}: Props) {
   const [isDeploying, setIsDeploying] = useState(false);
-  const [deployResult, setDeployResult] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
+  // Optimistic UI state locally if needed, but props should ideally drive this
+  const [localPushed, setLocalPushed] = useState(false);
 
-  useEffect(() => {
-    const checkStatus = async () => {
-      try {
-        const res = await fetch(`/api/scan/status/${scanId}`);
-        if (!res.ok) return;
-        const data = await res.json();
-
-        if (data.status) setStatus(data.status);
-        setVulnCount(data.counts?.critical || 0);
-      } catch (e) {
-        /* silent */
-      }
-    };
-
-    const interval = setInterval(checkStatus, 3000);
-    checkStatus();
-    return () => clearInterval(interval);
-  }, [scanId]);
+  const isCompleted = imagePushed || localPushed;
 
   const handleRelease = async () => {
     if (!confirm("Are you sure you want to trigger the release pipeline?"))
@@ -43,21 +36,19 @@ export default function ConfirmBuildButton({ scanId }: { scanId: string }) {
       const data = await res.json();
 
       if (res.ok) {
-        setDeployResult("success");
+        setLocalPushed(true);
         alert("Pipeline Resumed! Pushing to Docker Hub...");
       } else {
-        setDeployResult("error");
         setErrorMessage(data.error || "Failed to trigger release");
       }
     } catch (e) {
-      setDeployResult("error");
       setErrorMessage("Network connection error");
     } finally {
       setIsDeploying(false);
     }
   };
 
-  if (deployResult === "success") {
+  if (isCompleted) {
     return (
       <div className="bg-green-50 border border-green-200 text-green-700 p-4 rounded-lg flex items-center gap-2 mb-6 animate-in fade-in">
         <Check className="w-5 h-5" />
@@ -74,8 +65,10 @@ export default function ConfirmBuildButton({ scanId }: { scanId: string }) {
   // ✅ ถ้า BLOCKED หรือ FAILED ไม่ต้องโชว์ปุ่ม
   if (status === "BLOCKED" || status === "FAILED") return null;
 
-  // โชว์ปุ่มเฉพาะตอน SUCCESS (scan เสร็จ)
-  if (status !== "SUCCESS") return null;
+  // โชว์ปุ่มเฉพาะตอน SUCCESS หรือ MANUAL
+  const normalizedStatus = status?.toUpperCase();
+  if (normalizedStatus !== "SUCCESS" && normalizedStatus !== "MANUAL")
+    return null;
 
   return (
     <div className="bg-white p-6 rounded-xl border border-blue-200 shadow-md mb-6 animate-in fade-in slide-in-from-top-2">
@@ -128,3 +121,4 @@ export default function ConfirmBuildButton({ scanId }: { scanId: string }) {
     </div>
   );
 }
+

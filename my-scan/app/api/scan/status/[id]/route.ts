@@ -53,16 +53,22 @@ export async function GET(
     // ✅ STEP 1: ค้นหาใน Database ก่อน เพื่อเอา Project ID (scanId) ที่ถูกต้อง
     // เพราะเราไม่รู้ว่า Pipeline 180 นี้ เป็นของ Project ไหน
     const scanRecord = (await prisma.scanHistory.findFirst({
-      where: { pipelineId: id }, // ค้นด้วย Pipeline ID
+      where: {
+          OR: [
+              { pipelineId: id },
+              { id: id }
+          ]
+      },
       include: { service: { include: { group: true } } },
     })) as any;
 
     if (!scanRecord) {
       return NextResponse.json(
-        { error: "Pipeline not found in database" },
+        { error: "Pipeline/Scan not found in database" },
         { status: 404 }
       );
     }
+
 
     const projectId = scanRecord.scanId; // ได้ Project ID แล้ว (เช่น 55)
 
@@ -362,6 +368,7 @@ export async function GET(
       criticalVulnerabilities:
         (scanRecord.details as any)?.criticalVulnerabilities || [],
       serviceId: scanRecord.serviceId,
+      imagePushed: scanRecord.imagePushed,
     });
   } catch (error: any) {
     console.error("API Error:", error);

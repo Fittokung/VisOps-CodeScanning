@@ -21,6 +21,7 @@ export type Run = {
   status: string;
   step: string;
   progress: number;
+  scanMode: string;
   counts: { critical: number; high: number; medium: number; low: number };
   findings: Vulnerability[];
   logs?: string[];
