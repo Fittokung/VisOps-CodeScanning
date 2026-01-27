@@ -24,17 +24,30 @@ interface ActiveScan {
   startedAt: string;
 }
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+const fetcher = (url: string) => 
+  fetch(url).then((res) => {
+    // ถ้าได้ 401 (Unauthorized) ให้ return null แทนที่จะ throw error
+    if (res.status === 401) {
+      return { activeScans: [] };
+    }
+    return res.json();
+  });
 
 export default function ActiveScanMonitor() {
   const [isMinimized, setIsMinimized] = useState(false);
 
   // Poll Active Scans ทุก 2 วินาที
-  const { data } = useSWR("/api/scan/status/active", fetcher, {
+  const { data, error } = useSWR("/api/scan/status/active", fetcher, {
     refreshInterval: 2000,
+    // หยุด polling ถ้าเจอ error (เช่น user ยังไม่ login)
+    revalidateOnFocus: false,
+    shouldRetryOnError: false,
   });
 
   const activeScans: ActiveScan[] = data?.activeScans || [];
+
+  // ถ้ามี error หรือไม่มี data ให้ซ่อนไปเลย
+  if (error) return null;
 
   // ถ้าไม่มีการ Scan ให้ซ่อนไปเลย
   if (activeScans.length === 0) return null;
