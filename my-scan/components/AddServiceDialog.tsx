@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, X, Loader2, AlertCircle, Package } from "lucide-react";
-import SimpleTooltip from "@/components/ui/Tooltip"; // ✅ Import Tooltip
+import SimpleTooltip from "@/components/ui/Tooltip";
+import DuplicateServiceWarning from "@/components/DuplicateServiceWarning";
 
 interface AddServiceDialogProps {
   groupId: string;
@@ -50,6 +51,10 @@ export default function AddServiceDialog({
   const [contextPath, setContextPath] = useState(".");
   const [imageName, setImageName] = useState("");
 
+  // Duplicate detection state
+  const [duplicateService, setDuplicateService] = useState<any>(null);
+  const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -73,6 +78,15 @@ export default function AddServiceDialog({
 
       if (!addServiceRes.ok) {
         const errorData = await addServiceRes.json();
+        
+        // Check if it's a duplicate error
+        if (addServiceRes.status === 409 && errorData.isDuplicate) {
+          setDuplicateService(errorData.existingService);
+          setShowDuplicateWarning(true);
+          setLoading(false);
+          return;
+        }
+        
         throw new Error(errorData.error || "Failed to add service");
       }
 
@@ -308,6 +322,49 @@ export default function AddServiceDialog({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Duplicate Warning Dialog */}
+      {showDuplicateWarning && duplicateService && (
+        <DuplicateServiceWarning
+          existingService={duplicateService}
+          mode="add-service"
+          onViewExisting={() => {
+            setShowDuplicateWarning(false);
+            setIsOpen(false);
+            router.push(`/dashboard?highlight=${duplicateService.id}`);
+          }}
+          onRescan={async () => {
+            setShowDuplicateWarning(false);
+            setLoading(true);
+            try {
+              const res = await fetch("/api/scan/start", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  serviceId: duplicateService.id,
+                  scanMode: "SCAN_AND_BUILD",
+                  imageTag: "latest",
+                }),
+              });
+              
+              if (res.ok) {
+                const { scanId } = await res.json();
+                setIsOpen(false);
+                router.push(`/scan/${scanId}`);
+              } else {
+                throw new Error("Failed to start scan");
+              }
+            } catch (err) {
+              setError("Failed to start re-scan");
+              setLoading(false);
+            }
+          }}
+          onCancel={() => {
+            setShowDuplicateWarning(false);
+            setLoading(false);
+          }}
+        />
       )}
     </>
   );
