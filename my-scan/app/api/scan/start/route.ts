@@ -11,6 +11,7 @@ import {
   AUTO_CLEANUP_ENABLED,
   MAX_SCAN_AGE_DAYS,
 } from "@/lib/scanConfig";
+import { checkDuplicateGlobally } from "@/lib/validators/serviceValidator";
 
 export async function POST(req: Request) {
   try {
@@ -31,6 +32,7 @@ export async function POST(req: Request) {
       contextPath: manualContextPath,
       imageName: manualImageName,
       projectName: manualProjectName,
+      force = false, // Allow override of duplicate check
     } = body;
 
     // Validate scan mode
@@ -113,6 +115,39 @@ export async function POST(req: Request) {
       const quotaCheck = await checkUserQuota(userId);
       if (!quotaCheck.canCreate)
         return NextResponse.json({ error: "Quota exceeded" }, { status: 429 });
+
+      // Check for duplicate service globally (unless force=true)
+      if (!force) {
+        const duplicateCheck = await checkDuplicateGlobally(
+          manualRepoUrl,
+          manualContextPath || ".",
+          manualImageName,
+          userId
+        );
+
+        if (duplicateCheck.isDuplicate && duplicateCheck.existingService) {
+          const existing = duplicateCheck.existingService;
+          return NextResponse.json(
+            {
+              error: "Service already exists",
+              isDuplicate: true,
+              existingService: {
+                id: existing.id,
+                serviceName: existing.serviceName,
+                imageName: existing.imageName,
+                contextPath: existing.contextPath,
+                groupId: existing.groupId,
+                groupName: existing.groupName,
+                repoUrl: existing.repoUrl,
+                lastScan: existing.lastScan,
+              },
+              suggestion:
+                "This service configuration already exists. You can re-scan the existing service or create a new one anyway.",
+            },
+            { status: 409 }
+          );
+        }
+      }
 
       finalConfig = {
         repoUrl: manualRepoUrl,

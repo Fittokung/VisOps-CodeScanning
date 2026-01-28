@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { checkDuplicateInProject } from "@/lib/validators/serviceValidator";
 
 export async function POST(req: Request) {
   try {
@@ -81,18 +82,28 @@ export async function POST(req: Request) {
         .toLowerCase()
         .replace(/[^a-z0-9]/g, "-")}`;
 
-    // 6. Check if service with same name already exists in this group
-    const existingService = await prisma.projectService.findFirst({
-      where: {
-        groupId,
-        serviceName,
-      },
-    });
+    // 6. Check for duplicate service using comprehensive validator
+    const duplicateCheck = await checkDuplicateInProject(
+      groupId,
+      serviceName,
+      finalImageName,
+      contextPath
+    );
 
-    if (existingService) {
+    if (duplicateCheck.isDuplicate && duplicateCheck.existingService) {
+      const existing = duplicateCheck.existingService;
       return NextResponse.json(
         {
-          error: `Service "${serviceName}" already exists in this project`,
+          error: `Service already exists in this project`,
+          isDuplicate: true,
+          existingService: {
+            id: existing.id,
+            serviceName: existing.serviceName,
+            imageName: existing.imageName,
+            contextPath: existing.contextPath,
+            lastScan: existing.lastScan,
+          },
+          suggestion: `A service with similar configuration already exists. You can view or re-scan the existing service instead.`,
         },
         { status: 409 }
       );
