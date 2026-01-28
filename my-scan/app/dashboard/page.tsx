@@ -391,12 +391,32 @@ export default function DashboardPage() {
               <div className="px-5 py-5 border-b border-slate-100 bg-gradient-to-r from-slate-800 to-slate-900 relative rounded-t-xl">
                 <div className="flex justify-between items-start mb-2">
                   <div className="min-w-0 pr-8">
-                    <h3
-                      className="font-bold text-white truncate text-lg tracking-tight"
-                      title={project.groupName}
-                    >
-                      {project.groupName}
-                    </h3>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3
+                        className="font-bold text-white truncate text-lg tracking-tight"
+                        title={project.groupName}
+                      >
+                        {project.groupName}
+                      </h3>
+                      {(() => {
+                        // Find the most recent scan across all services
+                        const allScans = project.services.flatMap(s => s.scans);
+                        const latestScan = allScans.length > 0 ? allScans[0] : null;
+                        
+                        if (latestScan) {
+                          return latestScan.scanMode === "SCAN_ONLY" ? (
+                            <span className="text-[10px] font-bold bg-purple-600/90 text-white px-2 py-0.5 rounded-full flex items-center gap-1 flex-shrink-0">
+                              <Shield size={10} /> Scan
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold bg-blue-600/90 text-white px-2 py-0.5 rounded-full flex items-center gap-1 flex-shrink-0">
+                              <Package size={10} /> Scan & Build
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
                     <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-400 font-mono bg-black/20 inline-block px-2 py-0.5 rounded">
                       <GitBranch size={12} />{" "}
                       <span className="truncate max-w-[200px]">
