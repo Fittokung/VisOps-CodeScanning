@@ -111,16 +111,21 @@ export async function checkDuplicateGlobally(
       .replace(/\/$/, "")
       .toLowerCase();
 
-    const existingService = await prisma.projectService.findFirst({
+    console.log("[Validator] Checking duplicate for:", {
+      normalizedRepoUrl,
+      contextPath,
+      imageName,
+      userId,
+    });
+
+    // Find all services with matching imageName and contextPath for this user
+    const matchingServices = await prisma.projectService.findMany({
       where: {
         imageName: imageName,
         contextPath: contextPath,
         group: {
           userId: userId,
           isActive: true,
-          repoUrl: {
-            contains: normalizedRepoUrl.split("/").pop() || normalizedRepoUrl,
-          },
         },
       },
       include: {
@@ -147,20 +152,24 @@ export async function checkDuplicateGlobally(
       },
     });
 
-    // Double-check repo URL match (case-insensitive)
-    if (
-      existingService &&
-      existingService.group.repoUrl
+    console.log("[Validator] Found matching services:", matchingServices.length);
+
+    // Filter by exact repo URL match
+    const existingService = matchingServices.find((service) => {
+      const serviceRepoUrl = service.group.repoUrl
         .replace(/\.git$/, "")
         .replace(/\/$/, "")
-        .toLowerCase() !== normalizedRepoUrl
-    ) {
+        .toLowerCase();
+      console.log("[Validator] Comparing:", serviceRepoUrl, "===", normalizedRepoUrl);
+      return serviceRepoUrl === normalizedRepoUrl;
+    });
+
+    if (!existingService) {
+      console.log("[Validator] No duplicate found");
       return { isDuplicate: false };
     }
 
-    if (!existingService) {
-      return { isDuplicate: false };
-    }
+    console.log("[Validator] Duplicate found:", existingService.id);
 
     return {
       isDuplicate: true,
