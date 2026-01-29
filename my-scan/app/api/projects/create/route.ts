@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { checkDuplicateGlobally } from "@/lib/validators/serviceValidator";
 
 const MAX_SERVICES_PER_USER = 6;
 
@@ -24,6 +25,9 @@ export async function POST(req: Request) {
       // New Inputs: รับ ID จาก Dropdown แทนการรับ Token ตรงๆ
       gitCredentialId,
       dockerCredentialId,
+      
+      // Force parameter to override duplicate check
+      force = false,
     } = body;
 
     // 1. Auth Check
@@ -179,7 +183,25 @@ export async function POST(req: Request) {
         throw new Error("Group ID is missing");
       }
 
-      // C. สร้าง Service
+      // C. Check for duplicate service (unless force=true)
+      if (!force && isNewGroup) {
+        const duplicateCheck = await checkDuplicateGlobally(
+          repoUrl,
+          contextPath || ".",
+          imageName,
+          user.id
+        );
+
+        if (duplicateCheck.isDuplicate && duplicateCheck.existingService) {
+          const existing = duplicateCheck.existingService;
+          // Throw special error to be caught outside transaction
+          const error: any = new Error("DUPLICATE_SERVICE");
+          error.existingService = existing;
+          throw error;
+        }
+      }
+
+      // D. สร้าง Service
       if (!serviceName || !imageName) {
         throw new Error("Service Name and Image Name are required");
       }
@@ -205,6 +227,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, serviceId: result.serviceId });
   } catch (error: any) {
     console.error("Create Project Error:", error);
+
+    // Handle duplicate service error
+    if (error.message === "DUPLICATE_SERVICE") {
+      return NextResponse.json(
+        {
+          error: "Service already exists",
+          isDuplicate: true,
+          existingService: error.existingService,
+          suggestion:
+            "This service configuration already exists. You can re-scan the existing service or create a new one anyway.",
+        },
+        { status: 409 }
+      );
+    }
 
     // จัดการ Error เฉพาะทาง
     if (error.message === "QUOTA_EXCEEDED") {

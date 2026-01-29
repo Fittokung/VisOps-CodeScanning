@@ -20,6 +20,7 @@ import {
   Plus,
   Tag,
 } from "lucide-react";
+import DuplicateServiceWarning from "@/components/DuplicateServiceWarning";
 
 type Props = {
   buildMode: boolean;
@@ -199,6 +200,10 @@ function ScanFormContent({ buildMode }: Props) {
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // Duplicate detection state
+  const [duplicateService, setDuplicateService] = useState<any>(null);
+  const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
+
   useEffect(() => {
     setCredentialsLoading(true);
     fetch("/api/user/settings/credentials")
@@ -224,7 +229,7 @@ function ScanFormContent({ buildMode }: Props) {
   const dockerOptions = credentials.filter((c) => c.provider === "DOCKER");
   const selectedDockerCred = credentials.find((c) => c.id === selectedDockerId);
 
-  async function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent, forceCreate = false) {
     e.preventDefault();
     if (!selectedGitId) return alert("Please select a GitHub account.");
     if (buildMode && !selectedDockerId)
@@ -250,10 +255,20 @@ function ScanFormContent({ buildMode }: Props) {
             buildMode && useCustomDockerfile
               ? customDockerfileContent
               : undefined,
+          force: forceCreate, // Pass force parameter
         }),
       });
 
       const createData = await createRes.json();
+      
+      // Check for duplicate error from projects/create
+      if (createRes.status === 409 && createData.isDuplicate) {
+        setDuplicateService(createData.existingService);
+        setShowDuplicateWarning(true);
+        setLoading(false);
+        return;
+      }
+      
       if (!createRes.ok)
         throw new Error(createData.message || createData.error);
 
@@ -265,10 +280,12 @@ function ScanFormContent({ buildMode }: Props) {
           scanMode: buildMode ? "SCAN_AND_BUILD" : "SCAN_ONLY",
           imageTag: imageTag || (buildMode ? "latest" : `audit-${Date.now()}`),
           trivyScanMode,
+          force: forceCreate, // Pass force parameter
         }),
       });
 
       const scanData = await scanRes.json();
+      
       if (scanRes.ok && scanData.scanId) {
         router.push(`/scan/${scanData.scanId}`);
       } else {
@@ -602,6 +619,55 @@ function ScanFormContent({ buildMode }: Props) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Duplicate Warning Dialog */}
+      {showDuplicateWarning && duplicateService && (
+        <DuplicateServiceWarning
+          existingService={duplicateService}
+          mode="standalone-scan"
+          onViewExisting={() => {
+            setShowDuplicateWarning(false);
+            router.push(`/dashboard?highlight=${duplicateService.id}`);
+          }}
+          onRescan={async () => {
+            setShowDuplicateWarning(false);
+            setLoading(true);
+            try {
+              const res = await fetch("/api/scan/start", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  serviceId: duplicateService.id,
+                  scanMode: buildMode ? "SCAN_AND_BUILD" : "SCAN_ONLY",
+                  imageTag: imageTag || (buildMode ? "latest" : `audit-${Date.now()}`),
+                }),
+              });
+              
+              if (res.ok) {
+                const { scanId } = await res.json();
+                router.push(`/scan/${scanId}`);
+              } else {
+                throw new Error("Failed to start scan");
+              }
+            } catch (err) {
+              alert("Failed to start re-scan");
+              setLoading(false);
+            }
+          }}
+          onCreateAnyway={() => {
+            setShowDuplicateWarning(false);
+            // Re-submit with force=true
+            const form = document.querySelector('form');
+            if (form) {
+              onSubmit({ preventDefault: () => {} } as any, true);
+            }
+          }}
+          onCancel={() => {
+            setShowDuplicateWarning(false);
+            setLoading(false);
+          }}
+        />
       )}
     </>
   );
