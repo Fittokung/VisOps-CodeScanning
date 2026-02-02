@@ -68,7 +68,7 @@ export default function ScanBuildGuidePage() {
               </div>
               <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 border border-slate-200 dark:border-slate-800">
                 <h3 className="font-medium text-slate-900 dark:text-white mb-2">Dockerfile</h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400">ต้องมีไฟล์ <code className="bg-slate-200 dark:bg-slate-700 px-1 rounded">Dockerfile</code> ใน Repository หรือใช้ Custom Dockerfile</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">ต้องมีไฟล์ <code className="bg-slate-200 dark:bg-slate-700 dark:text-slate-200 px-1 rounded">Dockerfile</code> ใน Repository หรือใช้ Custom Dockerfile</p>
               </div>
             </div>
           </section>
@@ -86,8 +86,8 @@ export default function ScanBuildGuidePage() {
                 <h3 className="font-medium text-slate-900 dark:text-white mb-1">Custom Dockerfile</h3>
                 <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">เขียน Dockerfile ใหม่ผ่านหน้าเว็บได้ เหมาะสำหรับ:</p>
                 <ul className="space-y-1 text-sm text-slate-600 dark:text-slate-400">
-                  <li className="flex items-center gap-2"><span className="text-blue-500">•</span> Repo ที่ไม่มี Dockerfile</li>
-                  <li className="flex items-center gap-2"><span className="text-blue-500">•</span> ต้องการเปลี่ยน Base Image ชั่วคราว</li>
+                  <li className="flex items-center gap-2 text-slate-600 dark:text-slate-400"><span className="text-blue-500">•</span> Repo ที่ไม่มี Dockerfile</li>
+                  <li className="flex items-center gap-2 text-slate-600 dark:text-slate-400"><span className="text-blue-500">•</span> ต้องการเปลี่ยน Base Image ชั่วคราว</li>
                 </ul>
               </div>
             </div>
