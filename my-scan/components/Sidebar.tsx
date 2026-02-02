@@ -11,6 +11,7 @@ import {
   FileCode,
   Users,
   ChevronRight,
+  Server,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -29,6 +30,7 @@ export default function Sidebar({ isAdmin }: SidebarProps) {
 
   const navItems = [
     { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { label: "Services", href: "/services", icon: Server }, // Added Services
     { label: "Scan History", href: "/scan/history", icon: History },
     { label: "Documents", href: "/docs/getting-started", icon: BookOpen },
   ];
