@@ -29,7 +29,7 @@ export default function LoginPage() {
         <div className="w-full max-w-sm text-center space-y-8 animate-in fade-in zoom-in-95 duration-500">
           {/* Logo Box */}
           <div className="flex justify-center">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center text-white font-bold text-2xl shadow-xl shadow-blue-100">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center text-white font-bold text-2xl shadow-xl shadow-blue-100 dark:shadow-blue-900/50">
               VS
             </div>
           </div>
