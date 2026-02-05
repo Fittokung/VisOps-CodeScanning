@@ -45,7 +45,7 @@ export async function DELETE(
 
     // 3. Logic ตรวจสอบสิทธิ์แบบถาวร (RBAC)
     const isOwner = service.group.userId === currentUser.id;
-    const isAdmin = currentUser.role === "ADMIN"; // เช็คจาก Database โดยตรง
+    const isAdmin = currentUser.role === "admin"; // เช็คจาก Database โดยตรง
 
     console.log(
       `[DELETE Request] User: ${email} | Role: ${currentUser.role} | Owner: ${isOwner}`
