@@ -16,9 +16,10 @@ import {
 
 interface SidebarProps {
   isAdmin: boolean;
+  isSuperAdmin: boolean;
 }
 
-export default function Sidebar({ isAdmin }: SidebarProps) {
+export default function Sidebar({ isAdmin, isSuperAdmin }: SidebarProps) {
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -39,6 +40,7 @@ export default function Sidebar({ isAdmin }: SidebarProps) {
     { label: "All Scans", href: "/admin/history", icon: ShieldCheck },
     { label: "Templates", href: "/admin/template", icon: FileCode },
     { label: "Users", href: "/admin/users", icon: Users },
+    ...(isSuperAdmin ? [{ label: "Settings", href: "/admin/settings", icon: ShieldCheck }] : []),
   ];
 
   const isActive = (path: string) =>

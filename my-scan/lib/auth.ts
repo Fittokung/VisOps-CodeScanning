@@ -2,7 +2,9 @@
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
+import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
+import { compare } from "bcryptjs";
 import { cookies } from "next/headers";
 
 export const authOptions: NextAuthOptions = {
@@ -30,6 +32,47 @@ export const authOptions: NextAuthOptions = {
       // *** เพิ่มบรรทัดนี้เพื่อแก้ Error: OAuthAccountNotLinked ***
       allowDangerousEmailAccountLinking: true,
     }),
+    CredentialsProvider({
+      name: "Admin Login",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          throw new Error("Missing email or password");
+        }
+
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email },
+        });
+
+        // Only allow admins to login via credentials
+        if (!user || !user.password || user.role !== "ADMIN") {
+          throw new Error("Invalid credentials or not an admin");
+        }
+
+        if (user.status === "REJECTED") {
+          throw new Error("Your account has been suspended.");
+        }
+
+        const isValid = await compare(credentials.password, user.password);
+
+        if (!isValid) {
+          throw new Error("Invalid password");
+        }
+
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          image: user.image,
+          role: user.role,
+          status: user.status,
+          isSetupComplete: user.isSetupComplete,
+        };
+      },
+    }),
   ],
   callbacks: {
     async jwt({ token, user, account, trigger }) {
@@ -49,6 +92,11 @@ export const authOptions: NextAuthOptions = {
         });
 
         if (dbUser) {
+          // Block Rejected Users
+          if (dbUser.status === "REJECTED") {
+            throw new Error("Your account has been suspended.");
+          }
+
           token.id = dbUser.id;
           token.isSetupComplete = dbUser.isSetupComplete;
           token.role = dbUser.role;
