@@ -61,6 +61,12 @@ export async function POST(req: Request) {
       },
     });
 
+    // ✅ Fix: Manual Settings update should also mark setup as complete
+    await prisma.user.update({
+      where: { id: userId },
+      data: { isSetupComplete: true },
+    });
+
     return NextResponse.json({ success: true, credential: newCred });
   } catch (error) {
     return NextResponse.json(

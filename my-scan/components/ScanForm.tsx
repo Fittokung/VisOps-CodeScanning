@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, Suspense } from "react";
+import useSWR from "swr";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Loader2,
@@ -33,8 +34,7 @@ function ScanFormContent({ buildMode }: Props) {
   const paramContext = searchParams.get("context") || "";
 
   // State
-  const [credentials, setCredentials] = useState<any[]>([]);
-  const [credentialsLoading, setCredentialsLoading] = useState(true);
+  // credentials & credentialsLoading are now managed by SWR
   const [selectedGitId, setSelectedGitId] = useState("");
   const [selectedDockerId, setSelectedDockerId] = useState("");
 
@@ -57,36 +57,71 @@ function ScanFormContent({ buildMode }: Props) {
   const [duplicateService, setDuplicateService] = useState<any>(null);
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
 
+  // Data Fetching with SWR
+  const { data: credentialsData, isLoading: credentialsLoading } = useSWR(
+    "/api/user/settings/credentials",
+    async (url) => {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Failed to fetch credentials");
+      return res.json();
+    }
+  );
+
+  const credentials = credentialsData?.credentials || [];
+
+  // Auto-select defaults & Sync state
   useEffect(() => {
-    setCredentialsLoading(true);
-    fetch("/api/user/settings/credentials")
-      .then((r) => r.json())
-      .then((data) => {
-        const creds = data.credentials || [];
-        setCredentials(creds);
-        const defGit = creds.find(
-          (c: any) => c.provider === "GITHUB" && c.isDefault,
+    if (credentials.length > 0) {
+      // 1. Sync: Clear selected ID if it no longer exists in current credentials
+      if (selectedGitId && !credentials.find((c: any) => c.id === selectedGitId)) {
+        setSelectedGitId("");
+      }
+      if (selectedDockerId && !credentials.find((c: any) => c.id === selectedDockerId)) {
+        setSelectedDockerId("");
+      }
+
+      // 2. Auto-select defaults if nothing selected
+      if (!selectedGitId) {
+        // ... (existing logic)
+        const defGit = credentials.find(
+          (c: any) => c.provider === "GITHUB" && c.isDefault
         );
         if (defGit) setSelectedGitId(defGit.id);
-        if (buildMode) {
-          const defDocker = creds.find(
-            (c: any) => c.provider === "DOCKER" && c.isDefault,
-          );
-          if (defDocker) setSelectedDockerId(defDocker.id);
+         // Fallback: If no default, pick first available
+        else {
+           const firstGit = credentials.find((c: any) => c.provider === "GITHUB");
+           if (firstGit) setSelectedGitId(firstGit.id);
         }
-      })
-      .finally(() => setCredentialsLoading(false));
-  }, [buildMode]);
+      }
+      
+      if (buildMode && !selectedDockerId) {
+        const defDocker = credentials.find(
+          (c: any) => c.provider === "DOCKER" && c.isDefault
+        );
+        if (defDocker) setSelectedDockerId(defDocker.id);
+        // Fallback
+        else {
+           const firstDocker = credentials.find((c: any) => c.provider === "DOCKER");
+           if (firstDocker) setSelectedDockerId(firstDocker.id);
+        }
+      }
+    }
+  }, [credentials, buildMode, selectedGitId, selectedDockerId]);
 
-  const gitOptions = credentials.filter((c) => c.provider === "GITHUB");
-  const dockerOptions = credentials.filter((c) => c.provider === "DOCKER");
-  const selectedDockerCred = credentials.find((c) => c.id === selectedDockerId);
+  const gitOptions = credentials.filter((c: any) => c.provider === "GITHUB");
+  const dockerOptions = credentials.filter((c: any) => c.provider === "DOCKER");
+  const selectedDockerCred = credentials.find((c: any) => c.id === selectedDockerId);
 
   async function onSubmit(e: React.FormEvent, forceCreate = false) {
     e.preventDefault();
-    if (!selectedGitId) return alert("Please select a GitHub account.");
+    if (!selectedGitId)
+      return alert(
+        "Missing GitHub Account. Please go to Settings > Identity & Access to add your GitHub Token."
+      );
     if (buildMode && !selectedDockerId)
-      return alert("Please select a Docker account.");
+      return alert(
+        "Missing Docker Account. Please go to Settings > Identity & Access to add your Docker Token."
+      );
     if (!serviceName) return alert("Service Name is required.");
 
     setLoading(true);
@@ -101,6 +136,7 @@ function ScanFormContent({ buildMode }: Props) {
           isPrivate: isPrivateRepo,
           gitCredentialId: selectedGitId,
           dockerCredentialId: buildMode ? selectedDockerId : undefined,
+          includeDocker: buildMode,
           serviceName,
           contextPath: buildContext || ".",
           imageName: buildMode ? imageName : serviceName + "-scan",
@@ -381,21 +417,24 @@ function ScanFormContent({ buildMode }: Props) {
                     </p>
                   </div>
 
-                  <div className="mb-auto">
-                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase">
-                      Scanner Level
-                    </label>
-                    <select
-                      value={trivyScanMode}
-                      onChange={(e) =>
-                        setTrivyScanMode(e.target.value as "fast" | "full")
-                      }
-                      className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all"
-                    >
-                      <option value="fast">Fast (Gitleaks + Semgrep)</option>
-                      <option value="full">Full (+ Dependency Check)</option>
-                    </select>
-                  </div>
+                  {/* ✅ Hide Scanner Level for Scan Only (Not implemented yet) */}
+                  {buildMode && (
+                    <div className="mb-auto">
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase">
+                        Scanner Level
+                      </label>
+                      <select
+                        value={trivyScanMode}
+                        onChange={(e) =>
+                          setTrivyScanMode(e.target.value as "fast" | "full")
+                        }
+                        className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all"
+                      >
+                        <option value="fast">Fast (Gitleaks + Semgrep)</option>
+                        <option value="full">Full (+ Dependency Check)</option>
+                      </select>
+                    </div>
+                  )}
                 </>
               )}
 

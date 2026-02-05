@@ -174,30 +174,52 @@ async function triggerGitLab(job: ScanJob): Promise<number> {
 
     // --- ตัวแปรสำหรับแสดงผลชื่อ Pipeline (Display) ---
     PROJECT_NAME: projectPath, 
-    FRONTEND_USER: job.userId, 
+    FRONTEND_USER: job.username || "unknown_user", // ✅ Use Username instead of ID
     USER_TAG: job.imageTag || "latest",
   };
 
   if (job.imageName) variables.IMAGE_NAME = job.imageName;
   if (job.customDockerfile) variables.CUSTOM_DOCKERFILE = job.customDockerfile;
 
+  // --- Debug Logging ---
+  console.log(`[GitLab Trigger] Preparing to trigger for Job ${job.id}`);
+  console.log(`   - Scan Mode: ${variables.SCAN_MODE}`);
+  console.log(`   - Repo: ${variables.USER_REPO_URL}`);
+  console.log(`   - Image: ${variables.IMAGE_NAME}:${variables.IMAGE_TAG}`);
+
   try {
+    // ✅ Fix: Use URLSearchParams to send variables as form-data
+    // This is more reliable for GitLab Triggers than JSON body
+    const params = new URLSearchParams();
+    params.append("token", GITLAB_TRIGGER_TOKEN!);
+    params.append("ref", "main");
+    
+    // Append variables as variables[KEY]=VALUE
+    Object.entries(variables).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        params.append(`variables[${key}]`, String(value));
+      }
+    });
+
     const response = await axios.post(
       `${GITLAB_API_URL}/projects/${projectId}/trigger/pipeline`,
+      params, // Send data as form-urlencoded
       {
-        variables: variables,
-      },
-      {
-        params: {
-          token: GITLAB_TRIGGER_TOKEN,
-          ref: "main",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
         },
         timeout: 10000,
-      },
+      }
     );
     return response.data.id;
   } catch (error: any) {
     console.error(`❌ Failed URL: ${error.config?.url}`);
+    if (error.response) {
+      console.error(
+        "🔴 GitLab Error Response:",
+        JSON.stringify(error.response.data, null, 2)
+      );
+    }
     throw error;
   }
 }
@@ -272,7 +294,31 @@ async function pollRunningScans() {
                  });
             }
         } catch (error: any) {
-            console.error(`[Poller] Failed to check pipeline ${scan.pipelineId}:`, error.message);
+            // ✅ Fix: Handle 404 (Deleted) and 401 (Unauthorized/Token Invalid)
+            if (error.response) {
+                const status = error.response.status;
+                if (status === 404) {
+                     const reason = "Pipeline deleted in GitLab";
+                     console.log(`[Poller] Pipeline ${scan.pipelineId} not found (404). Marking as CANCELLED.`);
+                     
+                     await prisma.scanHistory.update({
+                         where: { id: scan.id },
+                         data: { 
+                             status: "CANCELLED",
+                             errorMessage: reason,
+                             completedAt: new Date()
+                         }
+                     });
+                } else if (status === 401 || status === 403) {
+                     // ⚠️ Warning only: Don't cancel scan, just log.
+                     // Because a token issue shouldn't kill a running pipeline.
+                     console.warn(`[Poller] checking pipeline ${scan.pipelineId} failed (Status ${status}). Check GITLAB_TOKEN permissions.`);
+                } else {
+                    console.error(`[Poller] Failed to check pipeline ${scan.pipelineId}:`, error.message);
+                }
+            } else {
+                console.error(`[Poller] Failed to check pipeline ${scan.pipelineId}:`, error.message);
+            }
         }
     }
   } catch (error) {

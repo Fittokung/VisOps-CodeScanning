@@ -12,6 +12,20 @@ import {
   MAX_SCAN_AGE_DAYS,
 } from "@/lib/scanConfig";
 import { checkDuplicateGlobally } from "@/lib/validators/serviceValidator";
+import { z } from "zod";
+
+const ScanStartSchema = z.object({
+  serviceId: z.string().optional(),
+  scanMode: z.enum(["SCAN_ONLY", "SCAN_AND_BUILD"]).default("SCAN_AND_BUILD"),
+  imageTag: z.string().default("latest"),
+  repoUrl: z.string().url().optional(),
+  contextPath: z.string().optional(),
+  imageName: z.string().optional(),
+  projectName: z.string().optional(),
+  customDockerfile: z.string().optional(),
+  trivyScanMode: z.enum(["fast", "full"]).optional(),
+  force: z.boolean().default(false),
+});
 
 export async function POST(req: Request) {
   try {
@@ -24,16 +38,24 @@ export async function POST(req: Request) {
     const userId = (session.user as any).id;
     const body = await req.json();
 
+    const parseResult = ScanStartSchema.safeParse(body);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: "Validation Error", details: parseResult.error.format() },
+        { status: 400 }
+      );
+    }
+
     const {
       serviceId,
-      scanMode = "SCAN_AND_BUILD",
-      imageTag = "latest",
+      scanMode,
+      imageTag,
       repoUrl: manualRepoUrl,
       contextPath: manualContextPath,
       imageName: manualImageName,
       projectName: manualProjectName,
-      force = false, // Allow override of duplicate check
-    } = body;
+      force,
+    } = parseResult.data;
 
     // Validate scan mode
     if (!["SCAN_ONLY", "SCAN_AND_BUILD"].includes(scanMode)) {
@@ -58,11 +80,21 @@ export async function POST(req: Request) {
     const gitCred = credentials.find((c) => c.provider === "GITHUB");
     const dockerCred = credentials.find((c) => c.provider === "DOCKER");
 
-    if (!gitCred || !dockerCred) {
+    if (!gitCred) {
       return NextResponse.json(
         {
           error:
-            "Missing Default Credentials. Please go to Settings and set default GitHub & Docker accounts.",
+            "Missing Default GitHub Credential. Please go to Settings > Identity & Access to configure your GitHub Token and Username.",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (scanMode === "SCAN_AND_BUILD" && !dockerCred) {
+      return NextResponse.json(
+        {
+          error:
+            "Missing Default Docker Credential. Please go to Settings > Identity & Access to configure your Docker Token, Username, and Registry.",
         },
         { status: 400 },
       );
@@ -173,7 +205,8 @@ export async function POST(req: Request) {
     }
 
     const githubToken = decrypt(gitCred.token);
-    const dockerToken = decrypt(dockerCred.token);
+
+    const dockerToken = dockerCred ? decrypt(dockerCred.token) : undefined;
 
     // Create History
     const scanHistory = await prisma.scanHistory.create({
@@ -217,7 +250,7 @@ export async function POST(req: Request) {
 
       gitToken: githubToken,
       dockerToken: dockerToken,
-      dockerUser: dockerCred.username,
+      dockerUser: dockerCred?.username,
     };
 
     const published = await publishScanJob(job);

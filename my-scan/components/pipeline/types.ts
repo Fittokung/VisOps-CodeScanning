@@ -42,6 +42,7 @@ export type Run = {
     severity: string;
   }>;
   serviceId?: string;
+  imageTag?: string;
 };
 
 export type ComparisonData = {

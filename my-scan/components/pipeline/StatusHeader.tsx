@@ -1,6 +1,6 @@
 import React from "react";
 import { Download } from "lucide-react";
-import { StatusBadge } from "./StatusBadges";
+import { StatusBadge, ScanModeBadge } from "./StatusBadges";
 
 interface StatusHeaderProps {
   status: string;
@@ -8,6 +8,7 @@ interface StatusHeaderProps {
   step: string;
   progress: number;
   isBlocked: boolean;
+  scanMode?: string;
   rawReports?: {
     gitleaks?: any;
     semgrep?: any;
@@ -22,6 +23,7 @@ export const StatusHeader = ({
   step,
   progress,
   isBlocked,
+  scanMode,
   rawReports,
   onDownload,
 }: StatusHeaderProps) => {
@@ -39,6 +41,7 @@ export const StatusHeader = ({
           <div className="flex items-center gap-2 mb-1">
             <h1 className="text-xl font-bold text-gray-900">Scan Report</h1>
             <StatusBadge status={status} />
+            <ScanModeBadge mode={scanMode} />
           </div>
           <p className="text-sm text-gray-500">
             Repo: <span className="font-mono text-gray-700">{repoUrl}</span>

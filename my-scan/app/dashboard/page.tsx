@@ -2,7 +2,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import useSWR, { mutate } from "swr";
@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import AddServiceDialog from "@/components/AddServiceDialog";
 import Tooltip from "@/components/ui/Tooltip";
+import { ScanModeBadge, StatusBadge } from "@/components/pipeline/StatusBadges";
 
 // --- Types ---
 interface Project {
@@ -94,6 +95,7 @@ export default function DashboardPage() {
   const router = useRouter();
 
   // --- State ---
+  const [searchTerm, setSearchTerm] = useState("");
   const [deletingProject, setDeletingProject] = useState<string | null>(null);
   const [scanningService, setScanningService] = useState<string | null>(null);
 
@@ -139,6 +141,18 @@ export default function DashboardPage() {
 
   const projects: Project[] = dashboardData?.projects || [];
   const activeScans: ActiveScan[] = activeScansData?.activeScans || [];
+
+  // --- Logic: Search Filter ---
+  const filteredProjects = useMemo(() => {
+    if (!searchTerm) return projects;
+    
+    const lowerTerm = searchTerm.toLowerCase();
+    return projects.filter(
+      (p) =>
+        p.groupName.toLowerCase().includes(lowerTerm) ||
+        p.services.some((s) => s.serviceName.toLowerCase().includes(lowerTerm))
+    );
+  }, [projects, searchTerm]);
 
   // --- Logic: Smart Refresh ---
   useEffect(() => {
@@ -332,6 +346,8 @@ export default function DashboardPage() {
              <input
                 type="text"
                 placeholder="Search projects..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 pr-4 py-2.5 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all shadow-sm"
              />
           </div>
@@ -408,14 +424,14 @@ export default function DashboardPage() {
                 </div>
                 <div>
                    <span className="block font-bold text-slate-900 dark:text-white mb-1">Scan & Build</span>
-                   <span className="text-xs text-slate-500 dark:text-slate-400">Full pipeline with Docker</span>
+                   <span className="text-xs text-slate-500 dark:text-slate-400">Build with security scan</span>
                 </div>
              </button>
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6 pb-20">
-          <div className="bg-slate-50 dark:bg-slate-900/30 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 transition-all duration-200 flex flex-col min-h-[350px] p-6 hover:border-slate-400 dark:hover:border-slate-600 group/new">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="bg-slate-50 dark:bg-slate-900/30 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 transition-all duration-200 flex flex-col h-full min-h-[280px] p-6 hover:border-slate-400 dark:hover:border-slate-600 group/new">
             {/* Header */}
             <div className="text-center mb-6 mt-4">
               <div className="w-14 h-14 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center mx-auto mb-4 shadow-sm group-hover/new:scale-110 transition-transform duration-300">
@@ -461,7 +477,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {projects.map((project) => {
+          {filteredProjects.map((project) => {
             // Calculate overall status color
             const hasCritical = project.services.some(s => s.scans[0]?.vulnCritical > 0);
             const hasHigh = project.services.some(s => s.scans[0]?.vulnHigh > 0);
@@ -556,19 +572,17 @@ export default function DashboardPage() {
                             <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">
                               {service.serviceName}
                             </p>
-                            {/* Status Dot */}
                             {service.scans[0] && (
-                               <div className={`w-2 h-2 rounded-full ${
-                                  service.scans[0].status === "SUCCESS" ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" :
-                                  service.scans[0].status === "RUNNING" ? "bg-blue-500 animate-pulse" :
-                                  ["FAILED", "FAILED_SECURITY"].includes(service.scans[0].status) ? "bg-red-500" :
-                                  "bg-slate-300"
-                               }`} />
+                               <div className="flex flex-wrap gap-2 items-center">
+                                 <StatusBadge status={service.scans[0].status} />
+                                 <ScanModeBadge mode={service.scans[0].scanMode} />
+                               </div>
                             )}
                           </div>
                           
-                          <div className="flex items-center gap-2 mt-1">
-                             <div className="text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded font-mono truncate max-w-[100px]">
+                          <div className="flex items-center gap-2 mt-2 flex-wrap">
+                             <div className="text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded font-mono truncate max-w-[100px] flex items-center">
+                                <Tag size={10} className="mr-1" />
                                 {service.scans[0]?.imageTag || "latest"}
                              </div>
                              
@@ -710,7 +724,7 @@ export default function DashboardPage() {
                 >
                   {showRescanModal.lastScanMode === "SCAN_ONLY"
                     ? "Security Audit"
-                    : "Build & Scan"}
+                    : "Scan & Build"}
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Service:{" "}

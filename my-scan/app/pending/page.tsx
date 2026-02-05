@@ -1,10 +1,25 @@
 "use client";
+import React, { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { Clock, LogOut, XCircle, Mail } from "lucide-react";
 
 export default function PendingPage() {
-  const { data: session } = useSession();
-  const isRejected = (session?.user as any)?.status === "REJECTED";
+  const { data: session, update } = useSession();
+  const router = useRouter();
+  const isRejected = session?.user?.status === "REJECTED";
+
+  useEffect(() => {
+    // Poll every 5 seconds to check if status changed
+    const interval = setInterval(async () => {
+      const newSession = await update(); // Refetch session
+      if (newSession?.user?.status === "APPROVED") {
+        router.push("/dashboard");
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [update, router]);
 
   return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4">
@@ -33,9 +48,12 @@ export default function PendingPage() {
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
               Account Pending
             </h1>
-            <p className="text-slate-600 dark:text-slate-400 mb-8">
+            <p className="text-slate-600 dark:text-slate-400 mb-4">
               Hi <span className="font-semibold">{session?.user?.name}</span>,
               your account is currently waiting for admin approval.
+            </p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mb-8 animate-pulse">
+              Checking status automatically...
             </p>
           </>
         )}

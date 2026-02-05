@@ -60,10 +60,10 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session.user) {
         // Add user info to session from token
-        (session.user as any).id = token.id;
-        (session.user as any).isSetupComplete = token.isSetupComplete;
-        (session.user as any).role = token.role;
-        (session.user as any).status = token.status;
+        session.user.id = token.id;
+        session.user.isSetupComplete = token.isSetupComplete;
+        session.user.role = token.role;
+        session.user.status = token.status;
       }
       return session;
     },
