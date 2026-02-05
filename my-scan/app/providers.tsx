@@ -81,7 +81,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 
   // Case 2: Authenticated User -> แสดง Sidebar + Navbar Layout
   const user = session.user as any;
-  const isAdmin = user?.role?.toLowerCase() === "admin";
+  const isAdmin = user?.role === "admin";
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-slate-950 overflow-hidden">
