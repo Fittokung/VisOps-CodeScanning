@@ -73,11 +73,11 @@ export default function DuplicateServiceWarning({
   };
 
   const getStatusColor = (status: string) => {
-    if (status === "SUCCESS") return "text-emerald-600 bg-emerald-50";
-    if (status.includes("FAILED")) return "text-red-600 bg-red-50";
+    if (status === "SUCCESS") return "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20";
+    if (status.includes("FAILED")) return "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20";
     if (["RUNNING", "QUEUED"].includes(status))
-      return "text-blue-600 bg-blue-50";
-    return "text-slate-600 bg-slate-50";
+      return "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20";
+    return "text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800";
   };
 
   const getStatusIcon = (status: string) => {
@@ -106,26 +106,26 @@ export default function DuplicateServiceWarning({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-orange-100 bg-gradient-to-r from-orange-50 to-amber-50">
+        <div className="px-6 py-5 border-b border-orange-100 dark:border-orange-900/30 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/20 dark:to-amber-950/20">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-orange-100 rounded-lg">
-                <AlertTriangle className="w-6 h-6 text-orange-600" />
+              <div className="p-2.5 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                <AlertTriangle className="w-6 h-6 text-orange-600 dark:text-orange-400" />
               </div>
               <div>
-                <h3 className="font-bold text-lg text-orange-900">
+                <h3 className="font-bold text-lg text-orange-900 dark:text-orange-200">
                   Service Already Exists
                 </h3>
-                <p className="text-sm text-orange-700 mt-0.5">
+                <p className="text-sm text-orange-700 dark:text-orange-300 mt-0.5">
                   A similar service configuration was found
                 </p>
               </div>
             </div>
             <button
               onClick={onCancel}
-              className="text-orange-400 hover:text-orange-600 transition-colors p-1 rounded-lg hover:bg-orange-100"
+              className="text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 transition-colors p-1 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30"
             >
               <X size={20} />
             </button>
@@ -135,33 +135,33 @@ export default function DuplicateServiceWarning({
         {/* Content */}
         <div className="p-6 space-y-5">
           {/* Service Details */}
-          <div className="bg-slate-50 rounded-xl p-4 space-y-3 border border-slate-200">
+          <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-3 border border-slate-200 dark:border-slate-700">
             <div className="flex items-center gap-2 text-sm">
-              <Package size={16} className="text-slate-500 flex-shrink-0" />
-              <span className="font-semibold text-slate-700">
+              <Package size={16} className="text-slate-500 dark:text-slate-400 flex-shrink-0" />
+              <span className="font-semibold text-slate-700 dark:text-slate-200">
                 {existingService.serviceName}
               </span>
             </div>
 
-            <div className="flex items-center gap-2 text-sm text-slate-600">
-              <GitBranch size={16} className="text-slate-400 flex-shrink-0" />
+            <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+              <GitBranch size={16} className="text-slate-400 dark:text-slate-500 flex-shrink-0" />
               <span className="truncate font-mono text-xs">
                 {existingService.repoUrl.replace("https://github.com/", "")}
               </span>
             </div>
 
-            <div className="flex items-center gap-2 text-sm text-slate-600">
-              <Folder size={16} className="text-slate-400 flex-shrink-0" />
+            <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+              <Folder size={16} className="text-slate-400 dark:text-slate-500 flex-shrink-0" />
               <span className="font-mono text-xs">
                 {existingService.contextPath}
               </span>
             </div>
 
-            <div className="pt-2 border-t border-slate-200">
-              <div className="text-xs text-slate-500 mb-1.5">
+            <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+              <div className="text-xs text-slate-500 dark:text-slate-400 mb-1.5">
                 Project: {existingService.groupName}
               </div>
-              <div className="text-xs text-slate-500 font-mono">
+              <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">
                 Image: {existingService.imageName}
               </div>
             </div>
@@ -169,11 +169,11 @@ export default function DuplicateServiceWarning({
 
           {/* Last Scan Info */}
           {existingService.lastScan && (
-            <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+            <div className="bg-blue-50 dark:bg-blue-950/20 rounded-xl p-4 border border-blue-100 dark:border-blue-900/30">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <Clock size={16} className="text-blue-600" />
-                  <span className="text-sm font-semibold text-blue-900">
+                  <Clock size={16} className="text-blue-600 dark:text-blue-400" />
+                  <span className="text-sm font-semibold text-blue-900 dark:text-blue-200">
                     Last Scan
                   </span>
                 </div>
@@ -187,14 +187,14 @@ export default function DuplicateServiceWarning({
 
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div>
-                  <span className="text-slate-500">Tag:</span>
-                  <span className="ml-1 font-mono font-semibold text-slate-700">
+                  <span className="text-slate-500 dark:text-slate-400">Tag:</span>
+                  <span className="ml-1 font-mono font-semibold text-slate-700 dark:text-slate-300">
                     {existingService.lastScan.imageTag}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-500">When:</span>
-                  <span className="ml-1 font-semibold text-slate-700">
+                  <span className="text-slate-500 dark:text-slate-400">When:</span>
+                  <span className="ml-1 font-semibold text-slate-700 dark:text-slate-300">
                     {formatDate(existingService.lastScan.startedAt)}
                   </span>
                 </div>
@@ -202,14 +202,14 @@ export default function DuplicateServiceWarning({
 
               {(existingService.lastScan.vulnCritical > 0 ||
                 existingService.lastScan.vulnHigh > 0) && (
-                <div className="flex gap-2 mt-3 pt-3 border-t border-blue-200">
+                <div className="flex gap-2 mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
                   {existingService.lastScan.vulnCritical > 0 && (
-                    <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-bold">
+                    <span className="text-xs bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 px-2 py-1 rounded font-bold">
                       {existingService.lastScan.vulnCritical} Critical
                     </span>
                   )}
                   {existingService.lastScan.vulnHigh > 0 && (
-                    <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded font-bold">
+                    <span className="text-xs bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 px-2 py-1 rounded font-bold">
                       {existingService.lastScan.vulnHigh} High
                     </span>
                   )}
@@ -219,8 +219,8 @@ export default function DuplicateServiceWarning({
           )}
 
           {/* Suggestion */}
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-            <p className="text-sm text-amber-900">
+          <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-lg p-3">
+            <p className="text-sm text-amber-900 dark:text-amber-200">
               <AlertCircle size={14} className="inline mr-1.5" />
               {mode === "add-service"
                 ? "This service already exists in your project. You can view or re-scan it instead of creating a duplicate."
@@ -230,10 +230,10 @@ export default function DuplicateServiceWarning({
         </div>
 
         {/* Actions */}
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row gap-2">
+        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row gap-2">
           <button
             onClick={handleViewExisting}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
           >
             <Eye size={16} />
             View Existing
@@ -242,7 +242,7 @@ export default function DuplicateServiceWarning({
           {onRescan && (
             <button
               onClick={handleRescan}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors shadow-sm"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-purple-600 dark:bg-purple-700 rounded-lg hover:bg-purple-700 dark:hover:bg-purple-600 transition-colors shadow-sm"
             >
               <RefreshCw size={16} />
               Re-scan
@@ -252,7 +252,7 @@ export default function DuplicateServiceWarning({
           {onCreateAnyway && (
             <button
               onClick={onCreateAnyway}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-orange-700 bg-orange-100 border border-orange-300 rounded-lg hover:bg-orange-200 transition-colors"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-800 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-900/30 transition-colors"
             >
               Create Anyway
             </button>
@@ -260,7 +260,7 @@ export default function DuplicateServiceWarning({
 
           <button
             onClick={onCancel}
-            className="sm:hidden w-full px-4 py-2 text-sm text-slate-500 hover:text-slate-700 transition-colors"
+            className="sm:hidden w-full px-4 py-2 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
           >
             Cancel
           </button>
