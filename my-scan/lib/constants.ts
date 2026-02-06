@@ -39,7 +39,7 @@ export type UserStatusType = typeof UserStatus[keyof typeof UserStatus];
 // ============================================
 export const UserRoles = {
   USER: 'user',
-  ADMIN: 'admin',
+  ADMIN: 'ADMIN',
 } as const;
 
 export type UserRole = typeof UserRoles[keyof typeof UserRoles];

@@ -9,12 +9,15 @@ stages:
   - cleanup
 
 workflow:
-  name: "[$SCAN_MODE] $PROJECT_NAME ($USER_TAG)"
+  # แสดงชื่อคนที่สั่งรัน (User) ใน GitLab UI
+  name: "[$SCAN_MODE] $PROJECT_NAME ($USER_TAG) by $FRONTEND_USER"
   rules:
     - if: $CI_PIPELINE_SOURCE == "api"
     - if: $CI_PIPELINE_SOURCE == "pipeline"
     - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+    - if: $CI_COMMIT_BRANCH
 
 variables:
   # --- TOOL VERSIONS ---
@@ -35,7 +38,6 @@ variables:
   TEMP_IMAGE_TAG: "temp-$CI_PIPELINE_ID"
 
   # --- MODE CONFIGURATION ---
-  # Options: "SCAN_ONLY" | "SCAN_AND_BUILD"
   SCAN_MODE: "${SCAN_MODE:-SCAN_AND_BUILD}"
   TARGET_DIR: ""
 
@@ -49,15 +51,15 @@ variables:
   MAVEN_OPTS: "-Dmaven.repo.local=.m2/repository"
   GRADLE_USER_HOME: ".gradle"
 
-# ==================================================
-# 0. Nightly Maintenance (Skip if SCAN_ONLY)
-# ==================================================
+# 0. Nightly Maintenance (Cache Warmer)
+# ทำหน้าที่: "User คนแรกของวัน" (รันโดยระบบตามตารางเวลา)
 update_trivy_db:
   stage: maintenance
   image:
     name: aquasec/trivy:$TRIVY_VERSION
-    entrypoint: [""] # FIX: Clear entrypoint
+    entrypoint: [""]
   rules:
+    # รันเฉพาะตอนตั้งเวลา (Schedule) หรือกด Manual เองเท่านั้น
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_PIPELINE_SOURCE == "web"
       when: manual
@@ -65,18 +67,19 @@ update_trivy_db:
   cache:
     key: trivy-global-cache
     paths: [.trivycache/]
-    policy: pull-push
+    # สำคัญ: โหมดนี้อนุญาตให้ "อัปเดต" แคชกลับขึ้นไปได้ (Push)
+    policy: push
   script:
-    - if [ "$SCAN_MODE" == "SCAN_ONLY" ]; then echo "Skipping DB update in SCAN_ONLY mode."; exit 0; fi
-    - echo "Updating Trivy DB..."
+    - echo "System Maintenance- Downloading latest Trivy DB..."
+    - mkdir -p .trivycache/
+    # สั่งดาวน์โหลด DB ใหม่ล่าสุด เก็บลงโฟลเดอร์ Cache
     - trivy image --download-db-only --cache-dir .trivycache/
+    - echo "DB Updated. Cache will be pushed to server."
   artifacts:
     paths: [.trivycache/]
     expire_in: 2 days
 
-# ==================================================
 # 1. Fetch & Detection (ALWAYS RUN)
-# ==================================================
 fetch_and_detect:
   stage: setup
   image:
@@ -91,7 +94,9 @@ fetch_and_detect:
     - |
       if [ "$ENABLE_WEBHOOKS" = "true" ]; then
         wget --timeout=$WEBHOOK_TIMEOUT --spider "$BACKEND_HOST_URL/api/webhook" 2>&1 | grep -q "200\|302\|404" && \
-        wget --header="Content-Type: application/json" --post-data="{\"pipelineId\": \"$CI_PIPELINE_ID\", \"status\": \"RUNNING\", \"mode\": \"$SCAN_MODE\"}" "$BACKEND_HOST_URL/api/webhook" -O - || echo "Webhook Failed"
+        wget --header="Content-Type: application/json" \
+             --post-data="{\"pipelineId\": \"$CI_PIPELINE_ID\", \"status\": \"RUNNING\", \"mode\": \"$SCAN_MODE\", \"user\": \"$FRONTEND_USER\"}" \
+             "$BACKEND_HOST_URL/api/webhook" -O - || echo "Webhook Failed"
       fi
 
     # Clone
@@ -132,8 +137,8 @@ fetch_and_detect:
          fi
       done
 
-      SAFE_PROJ=$(echo "$PROJECT_NAME" | sed 's|/|-|g')
-      SAFE_CTX=$(echo "$DETECTED_PATH" | sed 's|/|-|g' | sed 's|^\.-||' | sed 's|^\.||')
+      SAFE_PROJ=$(echo "$PROJECT_NAME" | sed 's|/|-|g' | tr '[:upper:]' '[:lower:]')
+      SAFE_CTX=$(echo "$DETECTED_PATH" | sed 's|/|-|g' | sed 's|^\.-||' | sed 's|^\.||' | tr '[:upper:]' '[:lower:]')
       FINAL_IMAGE_NAME="docker.io/$DOCKER_USER/$SAFE_PROJ"
       [ -n "$SAFE_CTX" ] && FINAL_IMAGE_NAME="${FINAL_IMAGE_NAME}-${SAFE_CTX}"
 
@@ -153,9 +158,8 @@ fetch_and_detect:
     exclude: [".git/**/*", "**/node_modules/**/*"]
     expire_in: 1 hour
 
-# ==================================================
 # 2. Security Audits (ALWAYS RUN)
-# ==================================================
+
 gitleaks_scan:
   stage: security_audit
   image:
@@ -235,9 +239,7 @@ semgrep_scan:
   allow_failure: true
   artifacts: { paths: [semgrep-report.json], when: always }
 
-# ==================================================
 # 3. Compile (SKIP IF SCAN_ONLY)
-# ==================================================
 compile_java_maven:
   stage: compile
   image: maven:$MAVEN_VERSION
@@ -303,9 +305,7 @@ compile_python:
     - echo "Python detected."
   artifacts: { paths: ["."], expire_in: 1h }
 
-# ==================================================
 # 4. Build Docker Image (SKIP IF SCAN_ONLY)
-# ==================================================
 build_and_push:
   stage: build_artifact
   image:
@@ -365,92 +365,99 @@ build_and_push:
     - AUTH_STR=$(echo -n "$DOCKER_USER:$DOCKER_PASSWORD" | base64 | tr -d '\n')
     - echo "{\"auths\":{\"https://index.docker.io/v1/\":{\"auth\":\"$AUTH_STR\"},\"index.docker.io\":{\"auth\":\"$AUTH_STR\"}}}" > /kaniko/.docker/config.json
 
-    - /kaniko/executor --context "$CI_PROJECT_DIR/$CONTEXT_PATH" --dockerfile "$CI_PROJECT_DIR/$DOCKERFILE_PATH" --destination "$FINAL_IMAGE_NAME:$TEMP_IMAGE_TAG" --cache=true --snapshot-mode=redo --use-new-run
+    # --- แก้ไขบรรทัดนี้ครับ (เอา cache=true ออก และเพิ่ม retry) ---
+    - /kaniko/executor --context "$CI_PROJECT_DIR/$CONTEXT_PATH" --dockerfile "$CI_PROJECT_DIR/$DOCKERFILE_PATH" --destination "$FINAL_IMAGE_NAME:$TEMP_IMAGE_TAG" --snapshot-mode=redo --use-new-run --push-retry 3 --ignore-path=/product_uuid --ignore-path=/sys
 
-# ==================================================
-# 5. Container Scan (SKIP IF SCAN_ONLY)
-# ==================================================
+# 5. Container Scan (User Mode - Cached DB)
 trivy_scan:
   stage: container_scan
   image:
     name: aquasec/trivy:$TRIVY_VERSION
-    entrypoint: [""] # FIX ENTRYPOINT
+    entrypoint: [""] 
   needs: ["build_and_push", "fetch_and_detect"]
   variables:
     TRIVY_USERNAME: "$DOCKER_USER"
     TRIVY_PASSWORD: "$DOCKER_PASSWORD"
     TRIVY_AUTH_URL: "https://index.docker.io/v1/"
-  cache: { key: trivy-global-cache, paths: [.trivycache/], policy: pull-push }
+    TRIVY_CACHE_DIR: ".trivycache/"
+  
+  cache:
+    key: trivy-global-cache
+    paths: [.trivycache/]
+    policy: pull
+  
   script:
-    # --- CHECK MODE ---
     - if [ "$SCAN_MODE" == "SCAN_ONLY" ]; then echo "Container Scan skipped (SCAN_ONLY mode)."; exit 0; fi
 
     - echo "Scanning:$FINAL_IMAGE_NAME:$TEMP_IMAGE_TAG"
     - apk add --no-cache curl
 
-    - if [ ! -d ".trivycache/db" ]; then trivy image --download-db-only; fi
+    # Cache handling
+    - |
+      if [ ! -f ".trivycache/db/trivy.db" ]; then
+        echo "Cache not found! Downloading fallback..."
+        trivy image --download-db-only --cache-dir .trivycache/
+      else
+        echo "Using Cached DB (Fast Mode)"
+      fi
 
-    - trivy image --timeout 10m --scanners vuln --format json --output trivy-report.json --skip-db-update --severity CRITICAL,HIGH,MEDIUM --ignore-unfixed "$FINAL_IMAGE_NAME:$TEMP_IMAGE_TAG" || echo '{"Results":[]}' > trivy-report.json
+    # Scan execution
+    - trivy image --timeout 15m --scanners vuln --format json --output trivy-report.json --skip-db-update --severity CRITICAL,HIGH,MEDIUM --ignore-unfixed "$FINAL_IMAGE_NAME:$TEMP_IMAGE_TAG" || echo '{"Results":[]}' > trivy-report.json
 
-    # Webhook: Trivy Report
     - |
       if [ -f trivy-report.json ] && [ "$ENABLE_WEBHOOKS" = "true" ]; then
-        curl -X POST -H "Content-Type: application/json" -d "{\"pipelineId\": \"$CI_PIPELINE_ID\", \"status\": \"SCANNED\"}" "$BACKEND_HOST_URL/api/webhook" || true
+        curl -X POST -H "Content-Type: application/json" \
+        -d "{\"pipelineId\": \"$CI_PIPELINE_ID\", \"status\": \"SUCCESS\"}" \
+        "$BACKEND_HOST_URL/api/webhook" || true
       fi
   allow_failure: true
   artifacts: { paths: [trivy-report.json], when: always }
 
-# ==================================================
-# 6. Release (SKIP IF SCAN_ONLY)
-# ==================================================
 push_to_hub:
   stage: release
   image:
-    name: gcr.io/go-containerregistry/crane:$CRANE_VERSION
-    entrypoint: [""] # FIX ENTRYPOINT
+    name: alpine:latest # ✅ Changed from crane:debug to alpine
+    entrypoint: [""]
   needs: ["trivy_scan", "fetch_and_detect"]
   when: manual
   script:
-    # --- CHECK MODE ---
     - if [ "$SCAN_MODE" == "SCAN_ONLY" ]; then echo "Release skipped (SCAN_ONLY mode)."; exit 0; fi
-
     - echo "Promoting to $USER_TAG"
-    - apk add --no-cache grep curl
-
+    # ✅ Install necessary tools manually
+    - apk add --no-cache grep curl tar
     - CRITICALS=$(grep -o '"Severity":"CRITICAL"' trivy-report.json 2>/dev/null | wc -l || echo "0")
     - if [ "$CRITICALS" -gt 0 ]; then echo "BLOCKED:$CRITICALS Critical Vulns"; exit 1; fi
-
+    # ✅ Manually download and install Crane
+    - curl -sL https://github.com/google/go-containerregistry/releases/download/v0.19.1/go-containerregistry_Linux_x86_64.tar.gz | tar -xz -C /usr/local/bin crane
     - crane auth login -u "$DOCKER_USER" -p "$DOCKER_PASSWORD" index.docker.io
     - crane cp "$FINAL_IMAGE_NAME:$TEMP_IMAGE_TAG" "$FINAL_IMAGE_NAME:$USER_TAG"
-    - crane delete "$FINAL_IMAGE_NAME:$TEMP_IMAGE_TAG" || true
-
-    # Webhook: Success
+    - crane delete "$FINAL_IMAGE_NAME:$TEMP_IMAGE_TAG"
     - |
       if [ "$ENABLE_WEBHOOKS" = "true" ]; then
          curl -X POST -H "Content-Type: application/json" -d "{\"pipelineId\": \"$CI_PIPELINE_ID\", \"status\": \"SUCCESS\", \"image\": \"$FINAL_IMAGE_NAME:$USER_TAG\"}" "$BACKEND_HOST_URL/api/webhook" || true
       fi
-
-# ==================================================
-# 7. Cleanup (ALWAYS RUN)
-# ==================================================
 cleanup_temp_image:
   stage: cleanup
   image:
     name: gcr.io/go-containerregistry/crane:$CRANE_VERSION
-    entrypoint: [""] # FIX ENTRYPOINT
+    entrypoint: [""]
   needs: ["fetch_and_detect"]
   variables: { GIT_STRATEGY: none }
   script:
-    # Clean if we built something
+    - |
+      if [ "$SCAN_MODE" == "SCAN_ONLY" ] && [ "$ENABLE_WEBHOOKS" = "true" ]; then
+         echo "Scan Only mode completed. Sending SUCCESS webhook."
+         wget --header="Content-Type: application/json" \
+         --post-data="{\"pipelineId\": \"$CI_PIPELINE_ID\", \"status\": \"SUCCESS\"}" \
+         "$BACKEND_HOST_URL/api/webhook" -O - || true
+      fi
     - if [ "$SCAN_MODE" == "SCAN_ONLY" ] || [ -z "$DOCKER_USER" ]; then exit 0; fi
-
     - crane auth login -u "$DOCKER_USER" -p "$DOCKER_PASSWORD" index.docker.io || true
     - crane delete "$FINAL_IMAGE_NAME:$TEMP_IMAGE_TAG" || true
-
-    # Webhook: Fail (Final check)
     - |
-      apk add --no-cache curl
       if [ "$CI_JOB_STATUS" == "failed" ] && [ "$ENABLE_WEBHOOKS" = "true" ]; then
-         curl -X POST -H "Content-Type: application/json" -d "{\"pipelineId\": \"$CI_PIPELINE_ID\", \"status\": \"FAILED\"}" "$BACKEND_HOST_URL/api/webhook" || true
+         wget --header="Content-Type: application/json" \
+         --post-data="{\"pipelineId\": \"$CI_PIPELINE_ID\", \"status\": \"FAILED\"}" \
+         "$BACKEND_HOST_URL/api/webhook" -O - || true
       fi
   when: always

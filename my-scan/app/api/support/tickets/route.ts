@@ -24,7 +24,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status');
 
-    let whereClause: any = {};
+    const whereClause: any = {};
 
     // Admins can see all tickets, users only their own
     if (userRole !== 'admin') {
