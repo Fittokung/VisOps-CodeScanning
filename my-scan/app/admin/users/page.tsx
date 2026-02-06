@@ -18,7 +18,7 @@ interface User {
   id: string;
   name: string | null;
   email: string | null;
-  role: "ADMIN" | "user";
+  role: "admin" | "user";
   status: "ACTIVE" | "PENDING" | "REJECTED";
   image: string | null;
   createdAt: string;
@@ -63,7 +63,7 @@ export default function AdminUsersPage() {
     user.email?.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
-  if (session?.user.role !== "ADMIN") {
+  if (session?.user.role !== "admin") {
       return <div className="p-8 text-center text-red-500">Unauthorized Access</div>;
   }
 
@@ -138,7 +138,7 @@ export default function AdminUsersPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      {user.role === "ADMIN" ? (
+                      {user.role === "admin" ? (
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20">
                           <ShieldCheckIcon className="h-3 w-3" />
                           Admin
@@ -176,7 +176,7 @@ export default function AdminUsersPage() {
                             <span className="text-xs text-gray-500 animate-pulse">Processing...</span>
                           ) : (
                             <>
-                                {user.role !== "ADMIN" && user.status !== "REJECTED" && (
+                                {user.role !== "admin" && user.status !== "REJECTED" && (
                                     <button 
                                         onClick={() => handleAction(user.id, "PROMOTE")}
                                         className="text-xs px-2 py-1 rounded border border-indigo-200 dark:border-indigo-900 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors"
@@ -185,7 +185,7 @@ export default function AdminUsersPage() {
                                         Fromote
                                     </button>
                                 )}
-                                {user.role === "ADMIN" && user.id !== session?.user.id && (
+                                {user.role === "admin" && user.id !== session?.user.id && (
                                     <button 
                                         onClick={() => handleAction(user.id, "DEMOTE")}
                                         className="text-xs px-2 py-1 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"

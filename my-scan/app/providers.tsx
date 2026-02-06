@@ -81,7 +81,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 
   // Case 2: Authenticated User -> แสดง Sidebar + Navbar Layout
   const user = session.user as any;
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = user?.role === "admin";
   const isSuperAdmin = user?.email === "admin@local";
 
   return (
