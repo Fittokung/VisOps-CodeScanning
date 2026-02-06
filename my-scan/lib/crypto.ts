@@ -1,48 +1,98 @@
-import crypto from 'crypto';
+// lib/crypto.ts
+// AES-256-CBC encryption/decryption for sensitive token storage
 
-// ต้องใส่ ENCRYPTION_KEY ใน .env ด้วย (ยาว 32 ตัวอักษร)
+import crypto from 'crypto';
+import { env } from './env';
+import { logger } from './logger';
+
 const ALGORITHM = 'aes-256-cbc';
-const SECRET_KEY = process.env.ENCRYPTION_KEY || "your-32-char-random-string-must-be-very-secure"; 
 const IV_LENGTH = 16;
 
-// ถ้า Key ไม่ครบ 32 ตัว จะ Error
-if (SECRET_KEY.length !== 32) {
-  // ใส่ fallback ชั่วคราวกัน error ตอน dev (แต่ production ต้องแก้ .env นะ)
-  console.warn(" Warning: ENCRYPTION_KEY is not 32 chars. Using fallback.");
-}
-
-export function encrypt(text: string): string {
-  // ป้องกันกรณี text เป็น null/undefined
-  if (!text) return "";
+/**
+ * Get the encryption key from environment
+ * Throws error if key is missing or invalid (security requirement)
+ */
+function getEncryptionKey(): Buffer {
+  const key = env.ENCRYPTION_KEY;
   
-  // ใช้ key ที่มีความยาว 32 bytes (ถ้า secret key สั้นไป ให้ตัดหรือเติม)
-  const keyBuffer = Buffer.alloc(32); 
-  keyBuffer.write(SECRET_KEY);
-
-  const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv(ALGORITHM, keyBuffer, iv);
-  let encrypted = cipher.update(text);
-  encrypted = Buffer.concat([encrypted, cipher.final()]);
-  return iv.toString('hex') + ':' + encrypted.toString('hex');
+  if (!key) {
+    throw new Error('ENCRYPTION_KEY is required but not set. Please set a 32-character encryption key in .env');
+  }
+  
+  if (key.length !== 32) {
+    throw new Error(`ENCRYPTION_KEY must be exactly 32 characters, got ${key.length}`);
+  }
+  
+  return Buffer.from(key, 'utf-8');
 }
 
-export function decrypt(text: string): string {
-  if (!text) return "";
+/**
+ * Encrypts a plaintext string using AES-256-CBC
+ * Returns format: iv:encryptedData (hex encoded)
+ */
+export function encrypt(text: string): string {
+  if (!text) return '';
   
   try {
-    const textParts = text.split(':');
-    const iv = Buffer.from(textParts.shift()!, 'hex');
-    const encryptedText = Buffer.from(textParts.join(':'), 'hex');
+    const keyBuffer = getEncryptionKey();
+    const iv = crypto.randomBytes(IV_LENGTH);
+    const cipher = crypto.createCipheriv(ALGORITHM, keyBuffer, iv);
     
-    const keyBuffer = Buffer.alloc(32); 
-    keyBuffer.write(SECRET_KEY);
+    let encrypted = cipher.update(text, 'utf-8');
+    encrypted = Buffer.concat([encrypted, cipher.final()]);
+    
+    return `${iv.toString('hex')}:${encrypted.toString('hex')}`;
+  } catch (error) {
+    logger.error('Encryption failed', { error: error instanceof Error ? error.message : 'Unknown error' });
+    throw error;
+  }
+}
 
+/**
+ * Decrypts an encrypted string back to plaintext
+ * Expects format: iv:encryptedData (hex encoded)
+ */
+export function decrypt(text: string): string {
+  if (!text) return '';
+  
+  try {
+    const [ivHex, encryptedHex] = text.split(':');
+    
+    if (!ivHex || !encryptedHex) {
+      throw new Error('Invalid encrypted text format');
+    }
+    
+    const keyBuffer = getEncryptionKey();
+    const iv = Buffer.from(ivHex, 'hex');
+    const encryptedText = Buffer.from(encryptedHex, 'hex');
+    
     const decipher = crypto.createDecipheriv(ALGORITHM, keyBuffer, iv);
     let decrypted = decipher.update(encryptedText);
     decrypted = Buffer.concat([decrypted, decipher.final()]);
-    return decrypted.toString();
+    
+    return decrypted.toString('utf-8');
   } catch (error) {
-    console.error("Decryption failed:", error);
-    return "";
+    logger.error('Decryption failed', { error: error instanceof Error ? error.message : 'Unknown error' });
+    return '';
+  }
+}
+
+/**
+ * Validates that encryption is properly configured
+ * Useful for startup health checks
+ */
+export function validateEncryptionSetup(): boolean {
+  try {
+    getEncryptionKey();
+    
+    // Test round-trip encryption
+    const testValue = 'encryption-test-' + Date.now();
+    const encrypted = encrypt(testValue);
+    const decrypted = decrypt(encrypted);
+    
+    return decrypted === testValue;
+  } catch (error) {
+    logger.error('Encryption validation failed', { error: error instanceof Error ? error.message : 'Unknown error' });
+    return false;
   }
 }

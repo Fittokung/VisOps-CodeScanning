@@ -70,7 +70,7 @@ export async function GET(
     }
 
 
-    const projectId = scanRecord.scanId; // ได้ Project ID แล้ว (เช่น 55)
+    const projectId = process.env.GITLAB_PROJECT_ID; // Use configured project ID
 
     // ✅ STEP 2: ลองเรียก GitLab API ก่อนเสมอ เพื่อเช็คสถานะจริง
     // ถ้า pipeline ยังไม่มีใน GitLab จะ catch error แล้ว return QUEUED status
@@ -301,7 +301,7 @@ export async function GET(
         // 🗑️ Auto-delete blocked image
         try {
           const imageInfo = {
-            projectId: projectId,
+            projectId: projectId || "",
             pipelineId: id,
             imageName: scanRecord.service?.imageName,
             imageTag: "latest", // or extract from scan metadata

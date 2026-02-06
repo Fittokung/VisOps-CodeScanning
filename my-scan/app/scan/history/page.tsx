@@ -44,6 +44,7 @@ function ScanHistoryContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const serviceId = searchParams.get("serviceId");
+  const projectId = searchParams.get("projectId");
 
   const [scans, setScans] = useState<Scan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,9 +61,13 @@ function ScanHistoryContent() {
   // Fetch history
   const fetchHistory = useCallback(async () => {
     try {
-      const url = serviceId
-        ? `/api/scan/history?serviceId=${serviceId}`
-        : "/api/scan/history";
+      let url = "/api/scan/history";
+      
+      if (serviceId) {
+        url += `?serviceId=${serviceId}`;
+      } else if (projectId) {
+        url += `?projectId=${projectId}`;
+      }
 
       const response = await fetch(url);
       if (response.status === 401) {
@@ -241,26 +246,28 @@ function ScanHistoryContent() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
             Scan History
           </h1>
-          <p className="text-gray-500 text-sm mt-1">
+          <p className="text-gray-500 dark:text-slate-400 text-sm mt-1">
             {serviceId
               ? "History for selected service"
+              : projectId
+              ? "History for selected project"
               : `All system scans (${scans.length} total)`}
           </p>
         </div>
 
         {/* Actions / Filter Placeholders */}
         <div className="flex gap-2">
-          <button className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+          <button className="inline-flex items-center gap-2 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
             <Filter size={16} /> Filter
           </button>
           {selectedScans.length > 0 && (
             <button
               onClick={handleBulkDelete}
               disabled={deletingId === "bulk"}
-              className="inline-flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-100 rounded-lg text-sm font-medium text-red-600 hover:bg-red-100 transition-colors"
+              className="inline-flex items-center gap-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
             >
               {deletingId === "bulk" ? (
                 <Loader2 size={16} className="animate-spin" />
@@ -275,28 +282,28 @@ function ScanHistoryContent() {
 
       {/* Content */}
       {scans.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 bg-white border border-dashed border-slate-300 rounded-xl text-center">
-          <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-            <Clock className="w-8 h-8 text-slate-400" />
+        <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-center">
+          <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
+            <Clock className="w-8 h-8 text-slate-400 dark:text-slate-500" />
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-1">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
             No Scan History
           </h3>
-          <p className="text-gray-500 text-sm">
+          <p className="text-gray-500 dark:text-slate-400 text-sm">
             You haven't run any scans yet.
           </p>
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-100">
-                <thead className="bg-slate-50/50">
+              <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800">
+                <thead className="bg-slate-50/50 dark:bg-slate-800/50">
                   <tr>
                     <th className="px-6 py-4 text-left w-12">
                       <input
                         type="checkbox"
-                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                        className="rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer bg-white dark:bg-slate-800"
                         onChange={(e) => {
                           if (e.target.checked) {
                             // Select only current page items or all?
@@ -315,27 +322,27 @@ function ScanHistoryContent() {
                         }
                       />
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                       Service / Image
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                       Type
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                       Status
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                       Vulnerabilities
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                       Executed At
                     </th>
-                    <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                       Action
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-slate-100">
+                <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800">
                   {paginatedScans.map((scan) => {
                     const totalVulns =
                       scan.vulnCritical +
@@ -347,8 +354,8 @@ function ScanHistoryContent() {
                     return (
                       <tr
                         key={scan.id}
-                        className={`group hover:bg-slate-50/80 transition-colors cursor-pointer ${
-                          isSelected ? "bg-blue-50/40" : ""
+                        className={`group hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors cursor-pointer ${
+                          isSelected ? "bg-blue-50/40 dark:bg-blue-900/10" : ""
                         }`}
                         onClick={() =>
                           scan.pipelineId && handleViewDetails(scan)
@@ -362,16 +369,16 @@ function ScanHistoryContent() {
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => handleSelectScan(scan.id)}
-                            className="h-4 w-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                            className="h-4 w-4 text-blue-600 rounded border-slate-300 dark:border-slate-600 focus:ring-blue-500 cursor-pointer bg-white dark:bg-slate-800"
                           />
                         </td>
 
                         <td className="px-6 py-4">
                           <div className="flex flex-col">
-                            <span className="text-sm font-medium text-slate-900 group-hover:text-blue-600 transition-colors">
+                            <span className="text-sm font-medium text-slate-900 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                               {scan.service.serviceName}
                             </span>
-                            <span className="text-xs text-slate-500 font-mono mt-0.5 flex items-center gap-1">
+                            <span className="text-xs text-slate-500 dark:text-slate-500 font-mono mt-0.5 flex items-center gap-1">
                               <Package size={10} /> {scan.imageTag}
                             </span>
                           </div>
@@ -381,8 +388,8 @@ function ScanHistoryContent() {
                           <span
                             className={`text-[10px] font-bold px-2 py-1 rounded-full border ${
                               scan.scanMode === "SCAN_ONLY"
-                                ? "bg-purple-50 text-purple-700 border-purple-100"
-                                : "bg-indigo-50 text-indigo-700 border-indigo-100"
+                                ? "bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border-purple-100 dark:border-purple-900/30"
+                                : "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 border-indigo-100 dark:border-indigo-900/30"
                             }`}
                           >
                             {scan.scanMode === "SCAN_ONLY"
@@ -406,18 +413,18 @@ function ScanHistoryContent() {
 
                         <td className="px-6 py-4 whitespace-nowrap">
                           {totalVulns === 0 ? (
-                            <span className="text-emerald-600 text-xs font-medium flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded-full w-fit border border-emerald-100">
+                            <span className="text-emerald-600 dark:text-emerald-400 text-xs font-medium flex items-center gap-1 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded-full w-fit border border-emerald-100 dark:border-emerald-900/30">
                               <CheckCircle size={12} /> Clean
                             </span>
                           ) : (
                             <div className="flex gap-1.5">
                               {scan.vulnCritical > 0 && (
-                                <span className="text-[10px] font-bold text-red-700 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded shadow-sm">
+                                <span className="text-[10px] font-bold text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 px-1.5 py-0.5 rounded shadow-sm">
                                   C:{scan.vulnCritical}
                                 </span>
                               )}
                               {scan.vulnHigh > 0 && (
-                                <span className="text-[10px] font-bold text-orange-700 bg-orange-50 border border-orange-100 px-1.5 py-0.5 rounded shadow-sm">
+                                <span className="text-[10px] font-bold text-orange-700 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-900/30 px-1.5 py-0.5 rounded shadow-sm">
                                   H:{scan.vulnHigh}
                                 </span>
                               )}
@@ -431,7 +438,7 @@ function ScanHistoryContent() {
                           )}
                         </td>
 
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
                           <div className="flex items-center gap-1.5">
                             <Calendar size={14} className="text-slate-400" />
                             {new Date(scan.startedAt).toLocaleDateString()}
@@ -451,13 +458,13 @@ function ScanHistoryContent() {
                                 e.stopPropagation();
                                 handleViewDetails(scan);
                               }}
-                              className="text-slate-400 hover:text-blue-600 p-1.5 rounded-md hover:bg-blue-50 transition-colors"
+                              className="text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 p-1.5 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
                               title="View Report"
                             >
                               <ArrowUpRight size={18} />
                             </button>
                           ) : (
-                            <span className="text-slate-300 text-xs italic">
+                            <span className="text-slate-300 dark:text-slate-600 text-xs italic">
                               N/A
                             </span>
                           )}
@@ -473,32 +480,32 @@ function ScanHistoryContent() {
           {/* ✅ Pagination Footer */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-2 py-4">
-              <div className="text-sm text-slate-500">
-                Showing <span className="font-medium">{startIndex + 1}</span> to{" "}
-                <span className="font-medium">
+              <div className="text-sm text-slate-500 dark:text-slate-400">
+                Showing <span className="font-medium dark:text-white">{startIndex + 1}</span> to{" "}
+                <span className="font-medium dark:text-white">
                   {Math.min(startIndex + ITEMS_PER_PAGE, scans.length)}
                 </span>{" "}
-                of <span className="font-medium">{scans.length}</span> results
+                of <span className="font-medium dark:text-white">{scans.length}</span> results
               </div>
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => setCurrentPage(1)}
                   disabled={currentPage === 1}
-                  className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   title="First Page"
                 >
-                  <ChevronsLeft size={16} className="text-slate-600" />
+                  <ChevronsLeft size={16} className="text-slate-600 dark:text-slate-400" />
                 </button>
                 <button
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
-                  className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   title="Previous"
                 >
-                  <ChevronLeft size={16} className="text-slate-600" />
+                  <ChevronLeft size={16} className="text-slate-600 dark:text-slate-400" />
                 </button>
 
-                <div className="px-4 py-2 text-sm font-medium text-slate-700">
+                <div className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300">
                   Page {currentPage} of {totalPages}
                 </div>
 
@@ -507,18 +514,18 @@ function ScanHistoryContent() {
                     setCurrentPage((p) => Math.min(totalPages, p + 1))
                   }
                   disabled={currentPage === totalPages}
-                  className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   title="Next"
                 >
-                  <ChevronRight size={16} className="text-slate-600" />
+                  <ChevronRight size={16} className="text-slate-600 dark:text-slate-400" />
                 </button>
                 <button
                   onClick={() => setCurrentPage(totalPages)}
                   disabled={currentPage === totalPages}
-                  className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   title="Last Page"
                 >
-                  <ChevronsRight size={16} className="text-slate-600" />
+                  <ChevronsRight size={16} className="text-slate-600 dark:text-slate-400" />
                 </button>
               </div>
             </div>

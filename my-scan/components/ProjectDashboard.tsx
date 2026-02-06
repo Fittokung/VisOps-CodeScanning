@@ -8,10 +8,6 @@ import {
   ChevronDown,
   ChevronUp,
   PlayCircle,
-  Clock,
-  CheckCircle,
-  XCircle,
-  ShieldAlert,
   Loader2,
   History,
   Eye,
@@ -23,6 +19,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import AddServiceDialog from "./AddServiceDialog";
+import { getStatusIcon } from "./ui/StatusBadge";
 
 type Service = {
   id: string;
@@ -191,15 +188,7 @@ export default function ProjectDashboard({ userEmail }: { userEmail: string }) {
     }
   };
 
-  const getStatusIcon = (status?: string) => {
-    if (status === "SUCCESS")
-      return <CheckCircle size={16} className="text-green-500" />;
-    if (status === "FAILED")
-      return <XCircle size={16} className="text-red-500" />;
-    if (status === "BLOCKED")
-      return <ShieldAlert size={16} className="text-red-600" />;
-    return <Clock size={16} className="text-slate-400" />;
-  };
+  // Use shared getStatusIcon from StatusBadge
 
   return (
     <div className="space-y-6">
@@ -310,7 +299,7 @@ export default function ProjectDashboard({ userEmail }: { userEmail: string }) {
                         Status
                       </span>
                       <div className="flex items-center gap-1 mt-0.5">
-                        {getStatusIcon(service.lastScan?.status)}
+                        {getStatusIcon(service.lastScan?.status || 'PENDING')}
                         <span className="text-slate-700 font-medium">
                           {service.lastScan?.status || "Never"}
                         </span>

@@ -13,9 +13,14 @@ export async function POST(
 
     console.log(`🔄 Force Sync requested for Scan: ${scanId}`);
 
-    // 1. หาข้อมูล Scan
-    const scan = await prisma.scanHistory.findUnique({
-      where: { id: scanId },
+    // 1. หาข้อมูล Scan - support both id and pipelineId
+    const scan = await prisma.scanHistory.findFirst({
+      where: {
+        OR: [
+          { id: scanId },
+          { pipelineId: scanId },
+        ],
+      },
     });
 
     if (!scan || !scan.pipelineId) {
@@ -59,7 +64,7 @@ export async function POST(
     // 5. อัปเดต DB ถ้าสถานะเปลี่ยน
     if (newStatus !== scan.status) {
       await prisma.scanHistory.update({
-        where: { id: scanId },
+        where: { id: scan.id },
         data: { status: newStatus },
       });
       console.log(`✅ DB Updated: ${newStatus}`);

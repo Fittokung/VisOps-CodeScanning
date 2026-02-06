@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react';
 
-interface ActiveScan {
+export interface ActiveScan {
   scanId: string;
   serviceName: string;
   imageName: string;
@@ -16,7 +16,7 @@ interface ActiveScan {
   startedAt?: Date;
 }
 
-interface RecentScan {
+export interface RecentScan {
   scanId: string;
   serviceName: string;
   imageName: string;
@@ -26,7 +26,7 @@ interface RecentScan {
   vulnHigh: number;
 }
 
-interface ScanStatusData {
+export interface ScanStatusData {
   active: ActiveScan[];
   recentCompleted: RecentScan[];
   summary: {

@@ -54,6 +54,8 @@ async function startWorker() {
     // --- Channels ---
     const buildChannel = (await conn.createChannel()) as any;
     await setupQueue(buildChannel, BUILD_QUEUE_NAME);
+    // ✅ Limit concurrent Build & Scan jobs to 4 (Quota Rule)
+    // If all 4 slots are busy, new jobs will stay in RabbitMQ with status "QUEUED"
     await buildChannel.prefetch(4);
     buildChannel.consume(BUILD_QUEUE_NAME, (msg: ConsumeMessage | null) => {
       if (msg) handleMessage(msg, buildChannel);
@@ -61,6 +63,8 @@ async function startWorker() {
 
     const scanChannel = (await conn.createChannel()) as any;
     await setupQueue(scanChannel, SCAN_QUEUE_NAME);
+    // ✅ Limit concurrent Scan Only jobs to 6 (Quota Rule)
+    // Total concurrency = 4 (Build) + 6 (Scan) = 10 Max Users
     await scanChannel.prefetch(6);
     scanChannel.consume(SCAN_QUEUE_NAME, (msg: ConsumeMessage | null) => {
       if (msg) handleMessage(msg, scanChannel);
@@ -95,6 +99,13 @@ async function handleMessage(msg: ConsumeMessage, ch: Channel) {
   }
 
   console.log(`[Processing] Job ${job.id} (${job.type})`);
+  
+  const currentJob = await prisma.scanHistory.findUnique({ where: { id: job.scanHistoryId }, select: { status: true } });
+  if (!currentJob || currentJob.status === "CANCELLED" || currentJob.status === "FAILED_TRIGGER") {
+      console.warn(`[Worker] Job ${job.id} was ${currentJob?.status || "deleted"}. Skipping.`);
+      ch.ack(msg);
+      return;
+  }
 
   try {
     await prisma.scanHistory.update({
@@ -140,15 +151,15 @@ async function handleMessage(msg: ConsumeMessage, ch: Channel) {
 async function triggerGitLab(job: ScanJob): Promise<number> {
   const projectId = GITLAB_PROJECT_ID;
 
-  // สร้างชื่อ Project สวยๆ จาก URL (เอาไว้แสดงผล)
+
   const projectPath = extractProjectPath(job.repoUrl);
 
   console.log(`[Debug] Triggering GitLab Project ID: ${projectId}`);
 
-  // ✅ แก้ไข: เพิ่มตัวแปรที่ขาดหายไป (USER_REPO_URL, PROJECT_NAME, FRONTEND_USER)
+
   const variables: Record<string, string> = {
     // --- ตัวแปรบังคับ (Critical) ---
-    USER_REPO_URL: job.repoUrl, // 👈 ตัวนี้สำคัญสุด! ถ้าไม่มีคือพัง (exit 1)
+    USER_REPO_URL: job.repoUrl, 
 
     // --- ตัวแปรสำหรับ Logic ---
     SCAN_MODE: job.type === "SCAN_AND_BUILD" ? "SCAN_AND_BUILD" : "SCAN_ONLY",
@@ -162,8 +173,8 @@ async function triggerGitLab(job: ScanJob): Promise<number> {
     DOCKER_USER: job.dockerUser || "",
 
     // --- ตัวแปรสำหรับแสดงผลชื่อ Pipeline (Display) ---
-    PROJECT_NAME: projectPath, // 👈 แก้ชื่อหาย
-    FRONTEND_USER: job.userId, // 👈 แก้ "by ..." หาย
+    PROJECT_NAME: projectPath, 
+    FRONTEND_USER: job.userId, 
     USER_TAG: job.imageTag || "latest",
   };
 
@@ -181,6 +192,7 @@ async function triggerGitLab(job: ScanJob): Promise<number> {
           token: GITLAB_TRIGGER_TOKEN,
           ref: "main",
         },
+        timeout: 10000,
       },
     );
     return response.data.id;
@@ -203,7 +215,6 @@ const GITLAB_TOKEN = process.env.GITLAB_TOKEN;
 
 // ... (keep existing setup)
 
-// ✅ Increase polling interval to avoid rate limits
 const POLLING_INTERVAL = 10000;
 
 async function startPoller() {
@@ -235,10 +246,11 @@ async function pollRunningScans() {
         try {
             const url = `${GITLAB_API_URL}/projects/${GITLAB_PROJECT_ID}/pipelines/${scan.pipelineId}`;
             const res = await axios.get(url, {
-                headers: { "PRIVATE-TOKEN": GITLAB_TOKEN }
+                headers: { "PRIVATE-TOKEN": GITLAB_TOKEN },
+                timeout: 5000, // ✅ 5s Timeout for polling
             });
             
-            const glStatus = res.data.status; // success, failed, running, etc.
+            const glStatus = res.data.status; 
             let newStatus = "";
             
             if (glStatus === "success") newStatus = "SUCCESS";

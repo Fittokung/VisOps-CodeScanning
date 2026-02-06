@@ -84,7 +84,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   const isAdmin = user?.role === "admin";
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen bg-gray-50 dark:bg-slate-950 overflow-hidden">
       {/* 1. Left Sidebar */}
       <Sidebar isAdmin={isAdmin} />
 
@@ -94,7 +94,13 @@ function AppLayout({ children }: { children: React.ReactNode }) {
         <Navbar />
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <main
+          className={`flex-1 ${
+            pathname?.startsWith("/docs")
+              ? "overflow-hidden p-0"
+              : "overflow-y-auto p-4 sm:p-6 lg:p-8"
+          }`}
+        >
           {/* ✅ แก้ไขตรงนี้: ลบ max-w-7xl mx-auto ออก ใช้ w-full แทน */}
           <div className="w-full max-w-full h-full">{children}</div>
         </main>
@@ -103,10 +109,25 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
+import { ThemeProvider } from "@/components/ThemeProvider";
+
+// ... existing imports
+
+import { TourProvider } from "@/components/providers/TourProvider";
+
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
-      <AppLayout>{children}</AppLayout>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="system"
+        enableSystem
+        disableTransitionOnChange
+      >
+        <TourProvider>
+          <AppLayout>{children}</AppLayout>
+        </TourProvider>
+      </ThemeProvider>
     </SessionProvider>
   );
 }

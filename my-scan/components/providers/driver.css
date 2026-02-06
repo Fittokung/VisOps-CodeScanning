@@ -1,0 +1,167 @@
+/* 
+  ✨ Premium Driver.js Theme for VisOps CodeScanning
+  - Glassmorphism effects
+  - Modern Typography
+  - Smooth Animations
+*/
+
+/* Wrapper */
+.driver-popover {
+  background-color: #ffffff;
+  color: #1e293b; /* slate-800 */
+  padding: 24px;
+  border-radius: 16px; /* Rounded XL */
+  box-shadow: 
+    0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -2px rgba(0, 0, 0, 0.05),
+    0 0 0 1px rgba(0, 0, 0, 0.05); /* Subtle border */
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  max-width: 400px;
+  border: none;
+}
+
+/* Dark Mode Support (using .dark selector strategy if possible, or media query) */
+/* Dark Mode Support */
+/* Note: driver.js appends directly to body, so checking for .dark on html/body is needed */
+html.dark .driver-popover {
+  background-color: #0f172a; /* slate-900 */
+  color: #f8fafc; /* slate-50 */
+  box-shadow: 
+    0 10px 15px -3px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+/* Title */
+.driver-popover-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  line-height: 1.4;
+  color: #0f172a; /* slate-900 */
+  letter-spacing: -0.025em; /* Tracking tight */
+}
+html.dark .driver-popover-title {
+  color: #ffffff;
+}
+
+/* Description */
+.driver-popover-description {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #64748b; /* slate-500 */
+  margin-bottom: 20px !important;
+  font-weight: 400;
+}
+html.dark .driver-popover-description {
+  color: #94a3b8; /* slate-400 */
+}
+
+/* Footer / Butttons */
+.driver-popover-footer {
+  margin-top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Navigation Buttons Container */
+.driver-popover-navigation-btns {
+    gap: 8px;
+}
+
+/* "Next" & "Done" Buttons */
+.driver-popover-next-btn {
+  background: linear-gradient(to bottom right, #2563eb, #1d4ed8) !important; /* Blue-600 to Blue-700 */
+  color: white !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 8px 16px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.1) !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05), 0 0 0 1px rgba(0,0,0,0.1) !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer;
+}
+.driver-popover-next-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3), 0 2px 4px -1px rgba(37, 99, 235, 0.1) !important;
+}
+
+/* "Previous" Button */
+.driver-popover-prev-btn {
+  background: transparent !important;
+  color: #64748b !important; /* slate-500 */
+  border: 1px solid #e2e8f0 !important; /* slate-200 */
+  border-radius: 8px !important;
+  padding: 8px 16px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer;
+}
+html.dark .driver-popover-prev-btn {
+    border-color: #334155 !important;
+    color: #94a3b8 !important;
+}
+.driver-popover-prev-btn:hover {
+  background-color: #f8fafc !important; /* slate-50 */
+  color: #334155 !important; /* slate-700 */
+}
+html.dark .driver-popover-prev-btn:hover {
+    background-color: #1e293b !important;
+    color: #fff !important;
+}
+
+/* Close/Skip Button */
+.driver-popover-close-btn {
+  color: #94a3b8 !important;
+  background: transparent !important;
+  border: none !important;
+  font-size: 20px !important;
+  padding: 4px !important;
+  border-radius: 4px !important;
+  transition: color 0.2s !important;
+  position: absolute;
+  top: 16px;
+  right: 16px;
+}
+.driver-popover-close-btn:hover {
+  color: #ef4444 !important; /* Red-500 on hover */
+  background-color: rgba(239, 68, 68, 0.1) !important;
+}
+
+/* Progress Text */
+.driver-popover-progress-text {
+  font-size: 12px !important;
+  color: #94a3b8 !important;
+  font-weight: 500 !important;
+}
+
+/* Arrow */
+.driver-popover-arrow-side-left.driver-popover-arrow {
+  border-left-color: #ffffff;
+}
+.driver-popover-arrow-side-right.driver-popover-arrow {
+  border-right-color: #ffffff;
+}
+.driver-popover-arrow-side-top.driver-popover-arrow {
+  border-top-color: #ffffff;
+}
+.driver-popover-arrow-side-bottom.driver-popover-arrow {
+  border-bottom-color: #ffffff;
+}
+
+/* Dark Mode Arrow Overrides */
+html.dark .driver-popover-arrow-side-left.driver-popover-arrow {
+  border-left-color: #0f172a;
+}
+html.dark .driver-popover-arrow-side-right.driver-popover-arrow {
+  border-right-color: #0f172a;
+}
+html.dark .driver-popover-arrow-side-top.driver-popover-arrow {
+  border-top-color: #0f172a;
+}
+html.dark .driver-popover-arrow-side-bottom.driver-popover-arrow {
+  border-bottom-color: #0f172a;
+}

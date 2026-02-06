@@ -36,12 +36,12 @@ export default function DocsSidebar() {
 
   return (
     <div className="w-full pt-1">
-      <div className="mb-8 px-2 font-bold text-slate-900 tracking-tight">
+      <div className="mb-8 px-2 font-bold text-slate-900 dark:text-white tracking-tight">
         VisScan Docs
       </div>
       {navConfig.map((group, index) => (
         <div key={index} className="mb-6">
-          <h4 className="mb-2 px-2 text-xs font-semibold text-slate-900 uppercase tracking-wider">
+          <h4 className="mb-2 px-2 text-xs font-semibold text-slate-900 dark:text-white uppercase tracking-wider">
             {group.title}
           </h4>
           <div className="grid grid-flow-row auto-rows-max text-sm">
@@ -51,10 +51,10 @@ export default function DocsSidebar() {
                 <Link
                   key={itemIndex}
                   href={item.href}
-                  className={`group flex w-full items-center rounded-md px-2 py-1.5 hover:bg-slate-50 hover:text-slate-900 ${
+                  className={`group flex w-full items-center rounded-md px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white ${
                     isActive
-                      ? "font-medium text-slate-900 bg-slate-100"
-                      : "text-slate-500"
+                      ? "font-medium text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800"
+                      : "text-slate-500 dark:text-slate-400"
                   }`}
                 >
                   {item.title}

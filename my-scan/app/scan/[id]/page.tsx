@@ -62,13 +62,13 @@ export default async function ScanPage(props: Props) {
     const isScanOnly = scanMode === "SCAN_ONLY";
 
     return (
-      <main className="w-full min-h-screen bg-slate-50/50 pb-20">
+      <main className="w-full min-h-screen bg-slate-50/50 dark:bg-slate-950 pb-20">
         <div className="w-full max-w-full space-y-6">
           {/* Header Section */}
-          <div className="flex flex-col gap-4 border-b border-slate-200 pb-6 mb-6">
+          <div className="flex flex-col gap-4 border-b border-slate-200 dark:border-slate-800 pb-6 mb-6">
             <Link
               href="/dashboard"
-              className="inline-flex items-center gap-2 text-slate-500 hover:text-slate-900 text-sm font-medium transition w-fit"
+              className="inline-flex items-center gap-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white text-sm font-medium transition w-fit"
             >
               <ArrowLeft className="w-4 h-4" />
               Back to Dashboard
@@ -76,21 +76,21 @@ export default async function ScanPage(props: Props) {
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
                   Scan Results
                   <span
                     className={`text-xs px-2 py-1 rounded-full border font-bold uppercase tracking-wider ${
                       isScanOnly
-                        ? "bg-purple-50 text-purple-700 border-purple-200"
-                        : "bg-blue-50 text-blue-700 border-blue-200"
+                        ? "bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-900/30"
+                        : "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-900/30"
                     }`}
                   >
                     {isScanOnly ? "Security Audit" : "Build & Scan"}
                   </span>
                 </h1>
 
-                <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-slate-500">
-                  <div className="flex items-center gap-1.5 font-mono bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-slate-500 dark:text-slate-400">
+                  <div className="flex items-center gap-1.5 font-mono bg-slate-100 dark:bg-slate-900 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-800">
                     <Hash size={12} className="text-slate-400" />
                     {/* ใช้ pipelineId ถ้ามี ถ้าไม่มีใช้ id แทน */}
                     {(scanData.pipelineId || scanData.id).substring(0, 8)}
@@ -98,11 +98,11 @@ export default async function ScanPage(props: Props) {
 
                   <div className="flex items-center gap-1.5">
                     <GitBranch size={14} className="text-slate-400" />
-                    <span className="font-medium text-slate-700">
+                    <span className="font-medium text-slate-700 dark:text-slate-300">
                       {scanData.service.group.groupName}
                     </span>
-                    <span className="text-slate-300">/</span>
-                    <span className="font-medium text-slate-900">
+                    <span className="text-slate-300 dark:text-slate-600">/</span>
+                    <span className="font-medium text-slate-900 dark:text-white">
                       {scanData.service.serviceName}
                     </span>
                   </div>
@@ -119,7 +119,7 @@ export default async function ScanPage(props: Props) {
           </div>
 
           {/* 1. Pipeline View (Graph & Table) */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
             <PipelineView scanId={scanData.id} scanMode={scanMode} />
           </div>
 
@@ -130,6 +130,7 @@ export default async function ScanPage(props: Props) {
                 repoUrl={repoUrl}
                 groupId={groupId}
                 status={scanData?.status || "PENDING"}
+                scanId={scanData.id}
               />
             </div>
           )}

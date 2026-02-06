@@ -13,11 +13,16 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id: pipelineId } = await params;
+    const { id: scanIdParam } = await params;
 
-    // Find scan record
+    // Find scan record by either id (UUID) or pipelineId (GitLab pipeline ID)
     const scan = await prisma.scanHistory.findFirst({
-      where: { pipelineId },
+      where: {
+        OR: [
+          { id: scanIdParam },
+          { pipelineId: scanIdParam },
+        ],
+      },
       include: {
         service: {
           include: {
@@ -54,8 +59,8 @@ export async function POST(
     }
 
     // Cancel pipeline in GitLab
-    const gitlabProjectId = scan.scanId; // GitLab project ID
-    const gitlabPipelineId = pipelineId;
+    const gitlabProjectId = process.env.GITLAB_PROJECT_ID; // Use configured project ID
+    const gitlabPipelineId = scan.pipelineId; // Use the actual GitLab pipeline ID from the record
 
     const gitlabToken = process.env.GITLAB_TOKEN || process.env.GITLAB_PAT;
     const gitlabUrl = (

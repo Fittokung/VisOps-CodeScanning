@@ -9,6 +9,10 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+import { env } from "@/lib/env";
+import { ScanStatus } from "@/lib/constants";
+import { unauthorized, notFound, error as apiError, success } from "@/lib/apiResponse";
 
 interface WebhookPayload {
   pipelineId: string | number;
@@ -32,7 +36,35 @@ interface WebhookPayload {
   };
 }
 
+/**
+ * Verify webhook signature from GitLab (optional but recommended)
+ */
+function verifyWebhookSignature(req: Request): boolean {
+  const secret = env.GITLAB_WEBHOOK_SECRET;
+  
+  // If no secret configured, skip verification (development mode)
+  if (!secret) {
+    logger.warn('Webhook secret not configured, skipping signature verification');
+    return true;
+  }
+  
+  const signature = req.headers.get('X-Gitlab-Token');
+  
+  if (!signature) {
+    logger.warn('Webhook received without signature header');
+    return false;
+  }
+  
+  return signature === secret;
+}
+
 export async function POST(req: Request) {
+  // Verify webhook signature (optional security layer)
+  if (!verifyWebhookSignature(req)) {
+    logger.webhook.error('unknown', 'Invalid webhook signature');
+    return unauthorized('Invalid webhook signature');
+  }
+  
   try {
     let body: WebhookPayload;
     let reportFromFile: any = null;

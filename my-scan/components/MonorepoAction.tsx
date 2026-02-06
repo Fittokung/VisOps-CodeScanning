@@ -13,30 +13,57 @@ import {
   GitBranch,
 } from "lucide-react";
 
+import { useScanStatus } from "@/lib/statusPoller";
+
 type Props = {
   repoUrl: string;
   status: string;
   groupId: string;
   projectId?: string;
+  scanId?: string;
 };
 
 export default function MonorepoAction({
   repoUrl,
-  status,
+  status: initialStatus,
   groupId,
   projectId,
+  scanId,
 }: Props) {
   const router = useRouter();
+  
+  // Real-time status checking
+  const { data: pollData } = useScanStatus(3000); // Check every 3 seconds
+
+  // Determine current status
+  let status = initialStatus;
+  
+  if (scanId && pollData) {
+    // Check active scans
+    const activeScan = pollData.active?.find(s => s.scanId === scanId);
+    if (activeScan) {
+      status = activeScan.status;
+    } else {
+      // Check recently completed
+      const completedScan = pollData.recentCompleted?.find(s => s.scanId === scanId);
+      if (completedScan) {
+        status = completedScan.status;
+      }
+    }
+  }
 
   if (!repoUrl) return null;
 
+  // Normalize status for UI
   const isPending =
-    status === "PENDING" || status === "RUNNING" || status === "QUEUED";
+    status === "PENDING" || status === "RUNNING" || status === "QUEUED" || status === "PROCESSING";
   const isFailed =
     status === "FAILED" ||
     status === "FAILED_BUILD" ||
-    status === "FAILED_SECURITY";
-  const isSuccess = status === "SUCCESS" || status === "PASSED";
+    status === "FAILED_SECURITY" ||
+    status === "CANCELLED" || 
+    status === "CANCELED";
+  const isSuccess = status === "SUCCESS" || status === "PASSED" || status === "MANUAL";
 
   return (
     <div
@@ -72,8 +99,7 @@ export default function MonorepoAction({
 
                 {isPending && (
                   <span className="text-[10px] bg-blue-500/20 text-blue-200 px-2 py-0.5 rounded border border-blue-500/30 flex items-center gap-1">
-                    <Loader2 size={10} className="animate-spin" /> Current Job
-                    Running
+                    <Loader2 size={10} className="animate-spin" /> Current Job Running
                   </span>
                 )}
                 {isFailed && (

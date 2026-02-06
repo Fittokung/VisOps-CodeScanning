@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/crypto";
-import { checkUserQuota } from "@/lib/quotaManager";
+import { checkUserQuota, checkScanQuota } from "@/lib/quotaManager";
 import { publishScanJob } from "@/lib/queue/publisher";
 import { ScanJob } from "@/lib/queue/types";
 import {
@@ -11,6 +11,7 @@ import {
   AUTO_CLEANUP_ENABLED,
   MAX_SCAN_AGE_DAYS,
 } from "@/lib/scanConfig";
+import { checkDuplicateGlobally } from "@/lib/validators/serviceValidator";
 
 export async function POST(req: Request) {
   try {
@@ -31,6 +32,7 @@ export async function POST(req: Request) {
       contextPath: manualContextPath,
       imageName: manualImageName,
       projectName: manualProjectName,
+      force = false, // Allow override of duplicate check
     } = body;
 
     // Validate scan mode
@@ -84,13 +86,10 @@ export async function POST(req: Request) {
       if (service.group.userId !== userId)
         return NextResponse.json({ error: "Access denied" }, { status: 403 });
 
-      const activeScan = await prisma.scanHistory.findFirst({
-        where: { serviceId: serviceId, status: { in: ["QUEUED", "RUNNING"] } },
-      });
-
-      if (activeScan) {
+      const scanQuota = await checkScanQuota(serviceId);
+      if (!scanQuota.canScan) {
         return NextResponse.json(
-          { error: "Scan in progress", activeScanId: activeScan.id },
+          { error: scanQuota.error || "Scan in progress" },
           { status: 429 },
         );
       }
@@ -113,6 +112,39 @@ export async function POST(req: Request) {
       const quotaCheck = await checkUserQuota(userId);
       if (!quotaCheck.canCreate)
         return NextResponse.json({ error: "Quota exceeded" }, { status: 429 });
+
+      // Check for duplicate service globally (unless force=true)
+      if (!force) {
+        const duplicateCheck = await checkDuplicateGlobally(
+          manualRepoUrl,
+          manualContextPath || ".",
+          manualImageName,
+          userId
+        );
+
+        if (duplicateCheck.isDuplicate && duplicateCheck.existingService) {
+          const existing = duplicateCheck.existingService;
+          return NextResponse.json(
+            {
+              error: "Service already exists",
+              isDuplicate: true,
+              existingService: {
+                id: existing.id,
+                serviceName: existing.serviceName,
+                imageName: existing.imageName,
+                contextPath: existing.contextPath,
+                groupId: existing.groupId,
+                groupName: existing.groupName,
+                repoUrl: existing.repoUrl,
+                lastScan: existing.lastScan,
+              },
+              suggestion:
+                "This service configuration already exists. You can re-scan the existing service or create a new one anyway.",
+            },
+            { status: 409 }
+          );
+        }
+      }
 
       finalConfig = {
         repoUrl: manualRepoUrl,

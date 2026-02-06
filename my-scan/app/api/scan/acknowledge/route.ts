@@ -34,9 +34,14 @@ export async function POST(req: Request) {
       );
     }
 
-    // Get scan and verify ownership
-    const scan = await prisma.scanHistory.findUnique({
-      where: { id: scanId },
+    // Get scan and verify ownership - support both id and pipelineId
+    const scan = await prisma.scanHistory.findFirst({
+      where: {
+        OR: [
+          { id: scanId },
+          { pipelineId: scanId },
+        ],
+      },
       include: {
         service: {
           include: {
@@ -67,7 +72,7 @@ export async function POST(req: Request) {
     if (action === 'acknowledge') {
       // Mark as acknowledged but keep record
       await prisma.scanHistory.update({
-        where: { id: scanId },
+        where: { id: scan.id },
         data: {
           isCriticalAcknowledged: true,
           acknowledgedAt: new Date(),
@@ -84,7 +89,7 @@ export async function POST(req: Request) {
     if (action === 'delete') {
       // Soft delete: Keep record but mark as not latest
       await prisma.scanHistory.update({
-        where: { id: scanId },
+        where: { id: scan.id },
         data: {
           isLatest: false,
           isCriticalAcknowledged: true,

@@ -17,6 +17,7 @@ import {
   ArrowRight,
   AlertTriangle,
 } from "lucide-react";
+import { generateId, extractRepoName, generateImageName } from "@/lib/utils";
 
 // Types
 interface ServiceConfig {
@@ -50,31 +51,6 @@ const MonorepoContext = createContext<{
   submit: () => Promise<void>;
 } | null>(null);
 
-// Helper to generate unique IDs
-const generateId = () => Math.random().toString(36).substring(2, 9);
-
-// Helper to extract repo name from URL
-const extractRepoName = (url: string): string => {
-  if (!url) return "";
-  const cleanUrl = url.trim().replace(/\.git$/, "");
-  const parts = cleanUrl.split(/[\/:]/);
-  return (
-    parts[parts.length - 1]?.toLowerCase().replace(/[^a-z0-9-]/g, "") || ""
-  );
-};
-
-// Generate image name from repo + context
-const generateImageName = (repoUrl: string, contextPath: string): string => {
-  const repoName = extractRepoName(repoUrl);
-  if (contextPath && contextPath !== ".") {
-    const suffix = contextPath
-      .replace(/\//g, "-")
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, "");
-    return `${repoName}-${suffix}`;
-  }
-  return repoName;
-};
 
 function MonorepoProvider({
   children,
@@ -291,27 +267,27 @@ function ServiceCard({
     useMonorepo();
 
   return (
-    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+    <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
       {/* Card Header */}
       <button
         type="button"
         onClick={() => toggleServiceExpand(service.id)}
-        className="w-full px-4 py-3 bg-slate-50 flex items-center justify-between hover:bg-slate-100 transition"
+        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-800 transition"
       >
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">
+          <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-sm">
             {index + 1}
           </div>
           <div className="text-left">
-            <p className="font-medium text-slate-800">
+            <p className="font-medium text-slate-800 dark:text-slate-200">
               {service.serviceName || `Service ${index + 1}`}
             </p>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               {service.contextPath || "Root directory"}
             </p>
           </div>
           {service.serviceName && service.contextPath && (
-            <CheckCircle2 className="w-4 h-4 text-green-500" />
+            <CheckCircle2 className="w-4 h-4 text-green-500 dark:text-green-400" />
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -322,25 +298,25 @@ function ServiceCard({
                 e.stopPropagation();
                 removeService(service.id);
               }}
-              className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition"
+              className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition"
             >
               <Trash2 className="w-4 h-4" />
             </button>
           )}
           {service.isExpanded ? (
-            <ChevronUp className="w-5 h-5 text-slate-400" />
+            <ChevronUp className="w-5 h-5 text-slate-400 dark:text-slate-500" />
           ) : (
-            <ChevronDown className="w-5 h-5 text-slate-400" />
+            <ChevronDown className="w-5 h-5 text-slate-400 dark:text-slate-500" />
           )}
         </div>
       </button>
 
       {/* Card Body */}
       {service.isExpanded && (
-        <div className="p-4 space-y-4 border-t border-slate-100 animate-in slide-in-from-top-2 duration-200">
+        <div className="p-4 space-y-4 border-t border-slate-100 dark:border-slate-800 animate-in slide-in-from-top-2 duration-200">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                 Service Name *
               </label>
               <input
@@ -350,15 +326,15 @@ function ServiceCard({
                   updateService(service.id, { serviceName: e.target.value })
                 }
                 placeholder="e.g., backend, frontend, api"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm placeholder:text-slate-400 dark:placeholder:text-slate-600"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                 Build Directory
               </label>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400 font-mono">/</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500 font-mono">/</span>
                 <input
                   type="text"
                   value={service.contextPath}
@@ -366,7 +342,7 @@ function ServiceCard({
                     updateService(service.id, { contextPath: e.target.value })
                   }
                   placeholder="e.g., services/backend"
-                  className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm font-mono"
+                  className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm font-mono placeholder:text-slate-400 dark:placeholder:text-slate-600"
                 />
               </div>
             </div>
@@ -374,8 +350,8 @@ function ServiceCard({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium text-slate-700 mb-1.5 flex items-center gap-2">
-                <Box className="w-3.5 h-3.5" />
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-2">
+                <Box className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                 Image Name
               </label>
               <input
@@ -388,12 +364,12 @@ function ServiceCard({
                   generateImageName(state.repoUrl, service.contextPath) ||
                   "auto-generated"
                 }
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm font-mono"
+                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm font-mono placeholder:text-slate-400 dark:placeholder:text-slate-600"
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-700 mb-1.5 flex items-center gap-2">
-                <Tag className="w-3.5 h-3.5" />
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-2">
+                <Tag className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                 Image Tag
               </label>
               <input
@@ -403,7 +379,7 @@ function ServiceCard({
                   updateService(service.id, { imageTag: e.target.value })
                 }
                 placeholder="latest"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm font-mono"
+                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm font-mono placeholder:text-slate-400 dark:placeholder:text-slate-600"
               />
             </div>
           </div>
@@ -441,25 +417,25 @@ function MonorepoWizardContent() {
       >
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-indigo-100 mb-4">
-            <GitBranch className="w-7 h-7 text-indigo-600" />
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-indigo-100 dark:bg-indigo-900/40 mb-4">
+            <GitBranch className="w-7 h-7 text-indigo-600 dark:text-indigo-400" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">Monorepo Setup</h1>
-          <p className="text-slate-500 mt-1">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Monorepo Setup</h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">
             Configure multiple services from a single repository
           </p>
         </div>
 
         {/* Repository Section */}
-        <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
-          <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-2">
             <FolderTree className="w-4 h-4" />
             Repository
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                 Git Repository URL *
               </label>
               <input
@@ -468,11 +444,11 @@ function MonorepoWizardContent() {
                 onChange={(e) => setRepoUrl(e.target.value)}
                 placeholder="https://github.com/owner/repo"
                 required
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm placeholder:text-slate-400 dark:placeholder:text-slate-600"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                 Project Group Name *
               </label>
               <input
@@ -481,7 +457,7 @@ function MonorepoWizardContent() {
                 onChange={(e) => setGroupName(e.target.value)}
                 placeholder="my-project"
                 required
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm placeholder:text-slate-400 dark:placeholder:text-slate-600"
               />
             </div>
           </div>
@@ -491,10 +467,10 @@ function MonorepoWizardContent() {
               type="checkbox"
               checked={state.isPrivate}
               onChange={(e) => setIsPrivate(e.target.checked)}
-              className="w-4 h-4 accent-blue-600"
+              className="w-4 h-4 accent-blue-600 dark:accent-blue-500 dark:bg-slate-800 dark:border-slate-700"
             />
-            <span className="text-sm text-slate-700">Private Repository</span>
-            <span className="text-xs text-slate-400">
+            <span className="text-sm text-slate-700 dark:text-slate-300">Private Repository</span>
+            <span className="text-xs text-slate-400 dark:text-slate-500">
               (Uses GitHub token from Settings)
             </span>
           </label>
@@ -503,14 +479,14 @@ function MonorepoWizardContent() {
         {/* Services Section */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-2">
               <Server className="w-4 h-4" />
               Services ({state.services.length})
             </h2>
             <button
               type="button"
               onClick={addService}
-              className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium"
+              className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
             >
               <Plus className="w-4 h-4" />
               Add Service
@@ -525,11 +501,11 @@ function MonorepoWizardContent() {
         </div>
 
         {/* Info Banner */}
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-          <div className="text-sm text-amber-800">
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/30 rounded-lg p-4 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-500 flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-amber-800 dark:text-amber-200">
             <p className="font-medium">Multi-Service Build</p>
-            <p className="text-amber-700 mt-1">
+            <p className="text-amber-700 dark:text-amber-300/80 mt-1">
               All services will be created and scanned in sequence. Make sure
               each service has the correct build directory path.
             </p>
@@ -540,7 +516,7 @@ function MonorepoWizardContent() {
         <button
           type="submit"
           disabled={state.isSubmitting}
-          className="w-full px-6 py-3.5 bg-slate-900 text-white rounded-lg font-semibold hover:bg-slate-800 disabled:opacity-70 flex items-center justify-center gap-2 shadow-lg transition-all"
+          className="w-full px-6 py-3.5 bg-slate-900 dark:bg-blue-600 text-white rounded-lg font-semibold hover:bg-slate-800 dark:hover:bg-blue-700 disabled:opacity-70 flex items-center justify-center gap-2 shadow-lg transition-all"
         >
           {state.isSubmitting ? (
             <>

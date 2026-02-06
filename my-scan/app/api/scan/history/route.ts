@@ -20,6 +20,7 @@ export async function GET(req: Request) {
     const userId = (session.user as any).id;
     const { searchParams } = new URL(req.url);
     const serviceId = searchParams.get("serviceId");
+    const projectId = searchParams.get("projectId"); 
     const limit = parseInt(searchParams.get("limit") || "50");
 
     // Build query
@@ -33,6 +34,10 @@ export async function GET(req: Request) {
 
     if (serviceId) {
       where.serviceId = serviceId;
+    }
+
+    if (projectId) {
+      where.service.group.id = projectId; // ✅ Filter by Project (Group)
     }
 
     // Fetch scans

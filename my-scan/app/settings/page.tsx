@@ -129,42 +129,42 @@ export default function SettingsPage() {
     <div className="w-full space-y-8 pb-20">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight flex items-center gap-2">
           <Sliders className="text-slate-400" /> Settings
         </h1>
-        <p className="text-gray-500 text-sm mt-1 ml-9">
+        <p className="text-gray-500 dark:text-slate-400 text-sm mt-1 ml-9">
           Manage your connected accounts, organizations, and access tokens.
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* GitHub Section */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
-          <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col h-full">
+          <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-gray-100 rounded-lg border border-gray-200">
-                <Github className="w-5 h-5 text-gray-700" />
+              <div className="p-2 bg-gray-100 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700">
+                <Github className="w-5 h-5 text-gray-700 dark:text-slate-300" />
               </div>
               <div>
-                <h2 className="font-bold text-gray-900 text-sm">
+                <h2 className="font-bold text-gray-900 dark:text-white text-sm">
                   GitHub Accounts
                 </h2>
-                <p className="text-[11px] text-gray-500">
+                <p className="text-[11px] text-gray-500 dark:text-slate-400">
                   Access private repositories
                 </p>
               </div>
             </div>
             <button
               onClick={() => openAddModal("GITHUB")}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gray-900 rounded-lg hover:bg-black transition-colors shadow-sm"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gray-900 dark:bg-slate-700 rounded-lg hover:bg-black dark:hover:bg-slate-600 transition-colors shadow-sm"
             >
               <Plus size={14} /> Add Account
             </button>
           </div>
 
-          <div className="divide-y divide-slate-100 flex-1">
+          <div className="divide-y divide-slate-100 dark:divide-slate-800 flex-1">
             {githubCreds.length === 0 ? (
-              <div className="p-12 text-center text-gray-400 text-sm flex flex-col items-center gap-2">
+              <div className="p-12 text-center text-gray-400 dark:text-slate-500 text-sm flex flex-col items-center gap-2">
                 <Github size={32} className="opacity-20" />
                 No GitHub accounts connected.
               </div>
@@ -181,17 +181,17 @@ export default function SettingsPage() {
         </div>
 
         {/* Docker Section */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
-          <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col h-full">
+          <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-50 rounded-lg border border-blue-100">
-                <Box className="w-5 h-5 text-blue-600" />
+              <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-900/30">
+                <Box className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <h2 className="font-bold text-gray-900 text-sm">
+                <h2 className="font-bold text-gray-900 dark:text-white text-sm">
                   Docker Registries
                 </h2>
-                <p className="text-[11px] text-gray-500">
+                <p className="text-[11px] text-gray-500 dark:text-slate-400">
                   Push & pull container images
                 </p>
               </div>
@@ -204,9 +204,9 @@ export default function SettingsPage() {
             </button>
           </div>
 
-          <div className="divide-y divide-slate-100 flex-1">
+          <div className="divide-y divide-slate-100 dark:divide-slate-800 flex-1">
             {dockerCreds.length === 0 ? (
-              <div className="p-12 text-center text-gray-400 text-sm flex flex-col items-center gap-2">
+              <div className="p-12 text-center text-gray-400 dark:text-slate-500 text-sm flex flex-col items-center gap-2">
                 <Box size={32} className="opacity-20" />
                 No Docker registries connected.
               </div>
@@ -226,24 +226,24 @@ export default function SettingsPage() {
       {/* Modal Form */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full animate-in zoom-in-95 duration-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl max-w-md w-full animate-in zoom-in-95 duration-200 overflow-hidden border border-slate-200 dark:border-slate-800">
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex items-center gap-3">
               <div
                 className={`p-2 rounded-lg ${
-                  modalType === "GITHUB" ? "bg-gray-100" : "bg-blue-50"
+                  modalType === "GITHUB" ? "bg-gray-100 dark:bg-slate-800" : "bg-blue-50 dark:bg-blue-900/20"
                 }`}
               >
                 {modalType === "GITHUB" ? (
-                  <Github size={20} />
+                  <Github size={20} className="text-gray-700 dark:text-slate-300" />
                 ) : (
-                  <Box size={20} className="text-blue-600" />
+                  <Box size={20} className="text-blue-600 dark:text-blue-400" />
                 )}
               </div>
               <div>
-                <h3 className="font-bold text-gray-900">
+                <h3 className="font-bold text-gray-900 dark:text-white">
                   Add {modalType === "GITHUB" ? "GitHub" : "Docker"} Account
                 </h3>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-500 dark:text-slate-400">
                   Enter your credentials below
                 </p>
               </div>
@@ -251,20 +251,20 @@ export default function SettingsPage() {
 
             <form onSubmit={handleSave} className="p-6 space-y-4">
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase mb-1.5 block">
+                <label className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase mb-1.5 block">
                   Account Name (Alias)
                 </label>
                 <input
                   required
                   placeholder="e.g. Personal, Company Org"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-600"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase mb-1.5 block">
+                <label className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase mb-1.5 block">
                   {modalType === "GITHUB"
                     ? "GitHub Username"
                     : "Docker ID / Org Name"}
@@ -274,14 +274,14 @@ export default function SettingsPage() {
                   placeholder={
                     modalType === "GITHUB" ? "octocat" : "dockeruser"
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-600"
                   value={formUsername}
                   onChange={(e) => setFormUsername(e.target.value)}
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase mb-1.5 flex items-center gap-1">
+                <label className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase mb-1.5 flex items-center gap-1">
                   Access Token (PAT){" "}
                   <Key size={12} className="text-slate-400" />
                 </label>
@@ -289,11 +289,11 @@ export default function SettingsPage() {
                   required
                   type="password"
                   placeholder="ghp_... or dckr_..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm font-mono"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm font-mono text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-600"
                   value={formToken}
                   onChange={(e) => setFormToken(e.target.value)}
                 />
-                <p className="text-[10px] text-gray-400 mt-1">
+                <p className="text-[10px] text-gray-400 dark:text-slate-500 mt-1">
                   Use a generated Personal Access Token, not your password.
                 </p>
               </div>
@@ -304,21 +304,21 @@ export default function SettingsPage() {
                   id="isDefault"
                   checked={formIsDefault}
                   onChange={(e) => setFormIsDefault(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                  className="w-4 h-4 text-blue-600 rounded border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-950 focus:ring-blue-500"
                 />
                 <label
                   htmlFor="isDefault"
-                  className="text-sm text-gray-700 cursor-pointer select-none"
+                  className="text-sm text-gray-700 dark:text-slate-300 cursor-pointer select-none"
                 >
                   Set as default account
                 </label>
               </div>
 
-              <div className="flex gap-3 pt-4 border-t border-slate-100 mt-2">
+              <div className="flex gap-3 pt-4 border-t border-slate-100 dark:border-slate-800 mt-2">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
                 >
                   Cancel
                 </button>
@@ -350,34 +350,34 @@ function CredentialItem({
   onDelete: (id: string) => void;
 }) {
   return (
-    <div className="p-4 flex items-center justify-between group hover:bg-slate-50 transition-colors">
+    <div className="p-4 flex items-center justify-between group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
       <div className="flex items-center gap-4">
         <div
           className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shadow-sm ${
-            cred.provider === "GITHUB" ? "bg-gray-800" : "bg-blue-600"
+            cred.provider === "GITHUB" ? "bg-gray-800 dark:bg-slate-700" : "bg-blue-600"
           }`}
         >
           {cred.username.charAt(0).toUpperCase()}
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-gray-900 text-sm">
+            <span className="font-semibold text-gray-900 dark:text-white text-sm">
               {cred.name}
             </span>
             {cred.isDefault && (
-              <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold border border-emerald-100 flex items-center gap-0.5">
+              <span className="text-[10px] bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 rounded font-bold border border-emerald-100 dark:border-emerald-900/30 flex items-center gap-0.5">
                 <CheckCircle2 size={10} /> DEFAULT
               </span>
             )}
           </div>
-          <div className="text-xs text-gray-500 font-mono mt-0.5">
+          <div className="text-xs text-gray-500 dark:text-slate-400 font-mono mt-0.5">
             @{cred.username}
           </div>
         </div>
       </div>
       <button
         onClick={() => onDelete(cred.id)}
-        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+        className="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
         title="Remove Account"
       >
         <Trash2 size={16} />
