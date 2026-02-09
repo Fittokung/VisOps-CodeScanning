@@ -35,6 +35,7 @@ type ScanItem = {
   vulnLow: number;
   pipelineId: string;
   createdAt: string;
+  serviceId: string; // Added for re-scan functionality
   service: {
     serviceName: string;
     group: {
@@ -56,6 +57,12 @@ export default function AdminHistoryPage() {
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Filter States
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [userFilter, setUserFilter] = useState<string>("ALL");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -100,19 +107,64 @@ export default function AdminHistoryPage() {
     }
   };
 
+  const handleRescan = async (serviceId: string, serviceName: string) => {
+    if (!confirm(`Re-scan service "${serviceName}"?`)) return;
+    
+    try {
+      const res = await fetch("/api/scan/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serviceId }),
+      });
+      
+      if (res.ok) {
+        alert("Scan started successfully!");
+        fetchHistory(); // Refresh list
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to start scan");
+      }
+    } catch (error) {
+      alert("Network error.");
+    }
+  };
+
+  const handleCancel = async (id: string, pipelineId: string) => {
+    if (!confirm(`Force cancel this scan?`)) return;
+    
+    try {
+      // Update scan status to CANCELLED
+      const res = await fetch(`/api/scan/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "CANCELLED" }),
+      });
+      
+      if (res.ok) {
+        alert("Scan cancelled successfully!");
+        fetchHistory(); // Refresh list
+      } else {
+        alert("Failed to cancel scan");
+      }
+    } catch (error) {
+      alert("Network error.");
+    }
+  };
+
   useEffect(() => {
     fetchHistory();
     const interval = setInterval(fetchHistory, 10000);
     return () => clearInterval(interval);
   }, []);
 
-  // Search Logic
+  // Search and Filter Logic
   useEffect(() => {
-    if (!searchTerm.trim()) {
-      setFilteredHistory(history);
-    } else {
+    let filtered = [...history];
+
+    // Search filter
+    if (searchTerm.trim()) {
       const lowerTerm = searchTerm.toLowerCase();
-      const filtered = history.filter(
+      filtered = filtered.filter(
         (item) =>
           item.service?.serviceName.toLowerCase().includes(lowerTerm) ||
           item.service?.group?.groupName.toLowerCase().includes(lowerTerm) ||
@@ -120,10 +172,37 @@ export default function AdminHistoryPage() {
           item.service?.group?.user?.email.toLowerCase().includes(lowerTerm) ||
           item.pipelineId?.toLowerCase().includes(lowerTerm)
       );
-      setFilteredHistory(filtered);
     }
-    setCurrentPage(1); // Reset to first page on search
-  }, [searchTerm, history]);
+
+    // Status filter
+    if (statusFilter !== "ALL") {
+      filtered = filtered.filter((item) => item.status === statusFilter);
+    }
+
+    // User filter
+    if (userFilter !== "ALL") {
+      filtered = filtered.filter(
+        (item) => item.service?.group?.user?.email === userFilter
+      );
+    }
+
+    // Date range filter
+    if (dateFrom) {
+      filtered = filtered.filter(
+        (item) => new Date(item.createdAt) >= new Date(dateFrom)
+      );
+    }
+    if (dateTo) {
+      const endDate = new Date(dateTo);
+      endDate.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(
+        (item) => new Date(item.createdAt) <= endDate
+      );
+    }
+
+    setFilteredHistory(filtered);
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, userFilter, dateFrom, dateTo, history]);
 
   // Pagination Logic
   const totalPages = Math.ceil(filteredHistory.length / ITEMS_PER_PAGE);
@@ -131,6 +210,22 @@ export default function AdminHistoryPage() {
   const paginatedHistory = filteredHistory.slice(
     startIndex,
     startIndex + ITEMS_PER_PAGE
+  );
+
+  // Calculate Quick Stats
+  const totalScans = history.length;
+  const activeScans = history.filter((item) => 
+    item.status === "RUNNING" || item.status === "QUEUED"
+  ).length;
+  const failedScans = history.filter((item) => 
+    item.status === "FAILED" || item.status === "FAILED_SECURITY"
+  ).length;
+  const successScans = history.filter((item) => item.status === "SUCCESS").length;
+  const successRate = totalScans > 0 ? ((successScans / totalScans) * 100).toFixed(1) : "0";
+
+  // Get unique users for filter
+  const uniqueUsers = Array.from(
+    new Set(history.map((item) => item.service?.group?.user?.email).filter(Boolean))
   );
 
   // Helper Functions for Badges
@@ -207,6 +302,54 @@ export default function AdminHistoryPage() {
           </div>
         </div>
 
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Total Scans</p>
+                <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{totalScans}</p>
+              </div>
+              <div className="w-12 h-12 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
+                <ShieldAlert className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+              </div>
+            </div>
+          </div>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Active</p>
+                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">{activeScans}</p>
+              </div>
+              <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                <Loader2 className="w-6 h-6 text-blue-600 dark:text-blue-400 animate-spin" />
+              </div>
+            </div>
+          </div>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Failed</p>
+                <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">{failedScans}</p>
+              </div>
+              <div className="w-12 h-12 bg-red-50 dark:bg-red-900/20 rounded-lg flex items-center justify-center">
+                <XCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
+              </div>
+            </div>
+          </div>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Success Rate</p>
+                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{successRate}%</p>
+              </div>
+              <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Filters & Search */}
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1 max-w-md">
@@ -219,10 +362,53 @@ export default function AdminHistoryPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          {/* Placeholder Filter Button */}
-          {/* <button className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50">
-              <Filter size={16} /> Filters
-           </button> */}
+          
+          {/* Status Filter */}
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-slate-900 dark:text-white"
+          >
+            <option value="ALL">All Status</option>
+            <option value="SUCCESS">Success</option>
+            <option value="FAILED">Failed</option>
+            <option value="FAILED_SECURITY">Failed Security</option>
+            <option value="RUNNING">Running</option>
+            <option value="QUEUED">Queued</option>
+            <option value="CANCELLED">Cancelled</option>
+          </select>
+
+          {/* User Filter */}
+          <select
+            value={userFilter}
+            onChange={(e) => setUserFilter(e.target.value)}
+            className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-slate-900 dark:text-white"
+          >
+            <option value="ALL">All Users</option>
+            {uniqueUsers.map((email) => (
+              <option key={email} value={email}>
+                {email}
+              </option>
+            ))}
+          </select>
+
+          {/* Date From */}
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-slate-900 dark:text-white"
+            placeholder="From"
+          />
+
+          {/* Date To */}
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-slate-900 dark:text-white"
+            placeholder="To"
+          />
         </div>
 
         {/* Table */}
@@ -369,6 +555,26 @@ export default function AdminHistoryPage() {
                           >
                             <ArrowUpRight size={18} />
                           </Link>
+
+                          {/* Re-scan Button */}
+                          <button
+                            onClick={() => handleRescan(item.serviceId, item.service?.serviceName || "")}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors"
+                            title="Re-scan Service"
+                          >
+                            <RefreshCw size={18} />
+                          </button>
+
+                          {/* Force Cancel Button (only for RUNNING/QUEUED) */}
+                          {(item.status === "RUNNING" || item.status === "QUEUED") && (
+                            <button
+                              onClick={() => handleCancel(item.id, item.pipelineId)}
+                              className="p-1.5 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-md transition-colors"
+                              title="Force Cancel"
+                            >
+                              <XCircle size={18} />
+                            </button>
+                          )}
 
                           <button
                             onClick={() => handleDelete(item.id)}
