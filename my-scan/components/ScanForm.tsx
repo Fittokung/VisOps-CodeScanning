@@ -22,6 +22,18 @@ import DuplicateServiceWarning from "@/components/DuplicateServiceWarning";
 // Use shared components
 import AccountSelector from "./ui/AccountSelector";
 
+const TEMPLATE_OPTIONS = [
+  { value: "node", label: "Node.js" },
+  { value: "python", label: "Python" },
+  { value: "java-maven", label: "Java (Maven)" },
+  { value: "go", label: "Go Lang" },
+  { value: "dotnet", label: ".NET Core" },
+  { value: "php", label: "PHP" },
+  { value: "ruby", label: "Ruby" },
+  { value: "rust", label: "Rust" },
+  { value: "default", label: "Generic / Trivy" },
+];
+
 type Props = {
   buildMode: boolean;
 };
@@ -50,6 +62,7 @@ function ScanFormContent({ buildMode }: Props) {
 
   const [useCustomDockerfile, setUseCustomDockerfile] = useState(false);
   const [customDockerfileContent, setCustomDockerfileContent] = useState("");
+  const [selectedTemplate, setSelectedTemplate] = useState("");
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -204,7 +217,7 @@ function ScanFormContent({ buildMode }: Props) {
                     : "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
                 }`}
               >
-                {buildMode ? <Server size={20} /> : <ShieldCheck size={20} />}
+                {/* {buildMode ? <Server size={20} /> : <ShieldCheck size={20} />} */}
               </div>
               <div>
                 <h2 className="text-lg font-bold text-slate-800 dark:text-white leading-none">
@@ -258,7 +271,7 @@ function ScanFormContent({ buildMode }: Props) {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase">
-                      Git URL
+                      Git/GitHub URL
                     </label>
                     <input
                       type="url"
@@ -391,6 +404,13 @@ function ScanFormContent({ buildMode }: Props) {
                         ? "Edit Custom Dockerfile"
                         : "Customize Dockerfile"}
                     </button>
+                    {useCustomDockerfile && selectedTemplate && (
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300">
+                        <Code2 size={14} />
+                        <span className="font-semibold">Template:</span>
+                        {TEMPLATE_OPTIONS.find((t) => t.value === selectedTemplate)?.label}
+                      </div>
+                    )}
                   </div>
                 </>
               ) : (
@@ -482,6 +502,42 @@ function ScanFormContent({ buildMode }: Props) {
                 <X />
               </button>
             </div>
+            
+            {/* Template Selector Bar */}
+            <div className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-2 flex items-center gap-3">
+               <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Apply Template:</span>
+               <select 
+                 className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm rounded px-3 py-1 outline-none focus:ring-2 focus:ring-blue-500/50"
+                 value={selectedTemplate}
+                 onChange={async (e) => {
+                    const stack = e.target.value;
+                    if(stack) {
+                       if(customDockerfileContent && !confirm("Overwrite current Dockerfile content?")) return;
+                       
+                       try {
+                         const res = await fetch(`/api/templates?stack=${stack}`);
+                         const text = await res.text();
+                         setCustomDockerfileContent(text);
+                         setUseCustomDockerfile(true);
+                         setSelectedTemplate(stack);
+                       } catch(err) {
+                         alert("Failed to load template");
+                       }
+                    }
+                 }}
+               >
+                  <option value="" disabled>-- Select a Preset --</option>
+                  {TEMPLATE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+               </select>
+               <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto">
+                 Presets managed by Admin
+               </span>
+            </div>
+
             <div className="flex-1 bg-[#1e1e1e]">
               <textarea
                 className="w-full h-full bg-transparent text-slate-200 font-mono p-4 outline-none resize-none"

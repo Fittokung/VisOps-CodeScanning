@@ -21,10 +21,58 @@ export async function GET() {
         status: true,
         image: true,
         createdAt: true,
+        accounts: {
+          select: {
+            provider: true,
+          },
+        },
+        groups: {
+          where: { isActive: true },
+          select: {
+            services: {
+              select: {
+                scans: {
+                  select: {
+                    id: true,
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     });
 
-    return NextResponse.json(users);
+    // Transform data to include stats
+    const usersWithStats = users.map((user) => {
+      const totalProjects = user.groups.length;
+      const totalServices = user.groups.reduce((acc, group) => acc + group.services.length, 0);
+      const totalScans = user.groups.reduce((acc, group) => {
+        return acc + group.services.reduce((sAcc, service) => sAcc + service.scans.length, 0);
+      }, 0);
+
+      // Determine provider (google or credentials)
+      // If accounts is empty -> likely credentials (or manually created)
+      const provider = user.accounts.length > 0 ? user.accounts[0].provider : "credentials";
+
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        image: user.image,
+        createdAt: user.createdAt,
+        provider,
+        stats: {
+          projects: totalProjects,
+          services: totalServices,
+          scans: totalScans,
+        },
+      };
+    });
+
+    return NextResponse.json(usersWithStats);
   } catch (error) {
     console.error("[API_ADMIN_USERS]", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

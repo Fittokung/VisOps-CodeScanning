@@ -31,6 +31,17 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
       // *** เพิ่มบรรทัดนี้เพื่อแก้ Error: OAuthAccountNotLinked ***
       allowDangerousEmailAccountLinking: true,
+      profile(profile) {
+        return {
+          id: profile.sub,
+          name: profile.name,
+          email: profile.email,
+          image: profile.picture,
+          role: "user",
+          status: "PENDING",
+          isSetupComplete: false,
+        };
+      },
     }),
     CredentialsProvider({
       name: "Admin Login",
