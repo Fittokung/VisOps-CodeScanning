@@ -28,11 +28,11 @@ export default function Navbar() {
   const firstName = user?.name ? user.name.split(" ")[0] : "User";
   const userInitial = firstName?.charAt(0).toUpperCase() || "U";
 
-  // ✅ 1. Logic: กำหนด Title และ Icon ตาม Pathname
+ 
   const getPageIdentity = (path: string | null) => {
     if (!path) return null;
 
-    // ❌ ซ่อน Breadcrumb หน้า Dashboard หลัก (ตามที่ขอ)
+
     if (path === "/dashboard") {
       return null;
     }
@@ -62,7 +62,6 @@ export default function Navbar() {
       return { title: "Services", icon: Server, color: "text-indigo-600" };
     }
 
-    // Fallback สำหรับหน้าอื่นๆ ที่ไม่ได้ระบุ
     return { title: "Overview", icon: Layers, color: "text-slate-500" };
   };
 
@@ -85,7 +84,7 @@ export default function Navbar() {
 
   return (
     <header className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 h-16 flex items-center justify-between px-6 sticky top-0 z-40 transition-all duration-200">
-      {/* ✅ Left Side: Dynamic Breadcrumb (จะแสดงก็ต่อเมื่อ currentPage ไม่เป็น null) */}
+    
       <div className="flex items-center min-w-0">
         {currentPage ? (
           <div className="flex items-center gap-2 text-sm animate-in fade-in slide-in-from-left-2 duration-300">
@@ -106,13 +105,11 @@ export default function Navbar() {
             </div>
           </div>
         ) : (
-          // ถ้าเป็นหน้า Dashboard (null) อาจจะปล่อยว่าง หรือใส่ Logo ก็ได้
-          // ในที่นี้ปล่อยว่างเพื่อให้ Navbar ดูโล่งๆ สบายตา
           <div />
         )}
       </div>
 
-      {/* Right Side: User Profile Section */}
+
       <div className="flex items-center gap-3">
         <ThemeToggle />
         
