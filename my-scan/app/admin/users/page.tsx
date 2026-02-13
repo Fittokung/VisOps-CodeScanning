@@ -50,8 +50,8 @@ export default function AdminUsersPage() {
   const isLoading = !users && !error;
   
   // Stats
-  const totalAdmins = users?.filter(u => u.role === "ADMIN").length || 0;
-  const totalStandard = users?.filter(u => u.role !== "ADMIN").length || 0;
+  const totalAdmins = Array.isArray(users) ? users.filter(u => u.role === "ADMIN").length : 0;
+  const totalStandard = Array.isArray(users) ? users.filter(u => u.role !== "ADMIN").length : 0;
 
   // Handlers
   const handleSort = (field: keyof User | "stats.projects") => {
@@ -88,7 +88,7 @@ export default function AdminUsersPage() {
   };
 
   // Filter & Sort Logic
-  const filteredUsers = users?.filter(user => {
+  const filteredUsers = (Array.isArray(users) ? users : []).filter(user => {
     // 1. Search
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = 

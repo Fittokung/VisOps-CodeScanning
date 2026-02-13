@@ -44,16 +44,16 @@ export async function GET() {
     });
 
     // Transform data to include stats
-    const usersWithStats = users.map((user) => {
-      const totalProjects = user.groups.length;
-      const totalServices = user.groups.reduce((acc, group) => acc + group.services.length, 0);
-      const totalScans = user.groups.reduce((acc, group) => {
-        return acc + group.services.reduce((sAcc, service) => sAcc + service.scans.length, 0);
-      }, 0);
+    const usersWithStats = users.map((user: any) => {
+      const totalProjects = user.groups?.length || 0;
+      const totalServices = user.groups?.reduce((acc: number, group: any) => acc + (group.services?.length || 0), 0) || 0;
+      const totalScans = user.groups?.reduce((acc: number, group: any) => {
+        return acc + (group.services || []).reduce((sAcc: number, service: any) => sAcc + (service.scans?.length || 0), 0);
+      }, 0) || 0;
 
       // Determine provider (google or credentials)
       // If accounts is empty -> likely credentials (or manually created)
-      const provider = user.accounts.length > 0 ? user.accounts[0].provider : "credentials";
+      const provider = user.accounts?.length > 0 ? user.accounts[0].provider : "credentials";
 
       return {
         id: user.id,
