@@ -45,14 +45,33 @@ export const StatusBadge = ({ status }: { status: string }) => {
             ? "bg-green-50 text-green-700 border-green-200"
             : isCancelled
             ? "bg-gray-100 text-gray-700 border-gray-300"
-            : isBlocked
-            ? "bg-red-100 text-red-700 border-red-200 font-bold"
+            : isBlocked || status.includes("FAILED")
+            ? "bg-red-50 text-red-700 border-red-200 font-bold"
             : "bg-yellow-50 text-yellow-700 border-yellow-200"
         }`}
     >
       {isRunning && <Loader2 className="w-3 h-3 animate-spin" />}
       {isCancelled && <XCircle className="w-3 h-3" />}
+      {(isBlocked || status.includes("FAILED")) && <XCircle className="w-3 h-3" />}
       {status}
+    </span>
+  );
+};
+
+export const ScanModeBadge = ({ mode }: { mode?: string }) => {
+  // Normalize mode string
+  const normalizedMode = mode?.toUpperCase() || "SCAN_ONLY";
+  const isScanAndBuild = normalizedMode === "SCAN_AND_BUILD" || normalizedMode === "BUILD_AND_SCAN";
+
+  return (
+    <span
+      className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border whitespace-nowrap ${
+        isScanAndBuild
+          ? "bg-blue-100 text-blue-700 border-blue-200"
+          : "bg-purple-100 text-purple-700 border-purple-200"
+      }`}
+    >
+      {isScanAndBuild ? "Scan & Build" : "Scan Only"}
     </span>
   );
 };

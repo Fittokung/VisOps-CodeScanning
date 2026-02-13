@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -15,7 +15,9 @@ import {
   Package,
   Search as SearchIcon,
   Tag,
+  History,
 } from "lucide-react";
+import { ScanModeBadge, StatusBadge } from "@/components/pipeline/StatusBadges";
 
 interface Service {
   id: string;
@@ -30,6 +32,7 @@ interface Service {
     id: string;
     pipelineId: string;
     status: string;
+    scanMode?: string;
     vulnCritical: number;
     vulnHigh: number;
     vulnMedium: number;
@@ -45,10 +48,21 @@ export default function ServicesPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
   const [toast, setToast] = useState<{
     message: string;
     type: "success" | "error";
   } | null>(null);
+
+  const filteredServices = useMemo(() => {
+    if (!searchTerm) return services;
+    const lowerTerm = searchTerm.toLowerCase();
+    return services.filter(
+      (s) =>
+        s.serviceName.toLowerCase().includes(lowerTerm) ||
+        s.imageName.toLowerCase().includes(lowerTerm)
+    );
+  }, [services, searchTerm]);
 
   const fetchServices = async () => {
     try {
@@ -170,14 +184,9 @@ export default function ServicesPage() {
              <input
                 type="text"
                 placeholder="Search services..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 pr-4 py-2.5 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all shadow-sm"
-                // Note: We need to add search state logic, but for now this is UI
-                onChange={(e) => {
-                   // Simple client-side search logic could be added here or in a separate state
-                   const term = e.target.value.toLowerCase();
-                   // Assuming we have access to setServices or similar, but let's just leave UI for now
-                   // or better yet, let's implement a quick local filter if services state allows
-                }}
              />
           </div>
 
@@ -244,7 +253,7 @@ export default function ServicesPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {services.map((service) => {
+          {filteredServices.map((service) => {
             const latestScan = getLatestScanStatus(service);
             const totalVulns = latestScan
               ? latestScan.vulnCritical +
@@ -280,11 +289,18 @@ export default function ServicesPage() {
                           {service.serviceName}
                         </h3>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 max-w-full truncate">
                            <Tag size={10} className="mr-1" />
                            {service.imageName}
                          </span>
+
+                         {latestScan && (
+                           <>
+                             <StatusBadge status={latestScan.status} />
+                             <ScanModeBadge mode={latestScan.scanMode} />
+                           </>
+                         )}
                       </div>
                     </div>
                     

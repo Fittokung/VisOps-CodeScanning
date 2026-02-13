@@ -181,6 +181,36 @@ export default function PipelineView({
     }
   };
 
+  // ✅ New Rescan Handler for Cancelled/Failed State
+  const handleRestartScan = async () => {
+    if (!run?.serviceId) return;
+    setIsLoading(true); // Show loading temporarily
+    try {
+         const res = await fetch("/api/scan/start", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+               serviceId: run.serviceId,
+               scanMode: run.scanMode || "SCAN_AND_BUILD",
+               imageTag: run.imageTag || "latest",
+               force: true
+            }),
+         });
+         
+         const data = await res.json();
+         if (res.ok && data.scanId) {
+             // Redirect to new scan
+             router.push(`/scan/${data.scanId}`);
+         } else {
+             alert(data.error || "Failed to restart scan");
+             setIsLoading(false);
+         }
+    } catch (e) {
+        console.error("Restart error:", e);
+        setIsLoading(false);
+    }
+  };
+
   // --- RENDER STATES ---
 
   if (isLoading && !run) {
@@ -243,7 +273,7 @@ export default function PipelineView({
   }
 
   if (isCancelled) {
-    return <CancelledState scanId={scanId} />;
+    return <CancelledState scanId={scanId} onRescan={handleRestartScan} />;
   }
 
   return (
@@ -305,12 +335,13 @@ export default function PipelineView({
         />
       )}
 
-      <StatusHeader
+        <StatusHeader
         status={run.status}
         repoUrl={run.repoUrl}
         step={run.step}
         progress={run.progress}
         isBlocked={isBlocked}
+        scanMode={run.scanMode}
         rawReports={run.rawReports}
         onDownload={handleDownload}
       />

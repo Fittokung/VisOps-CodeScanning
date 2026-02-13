@@ -282,7 +282,7 @@ export default function SettingsPage() {
 
               <div>
                 <label className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase mb-1.5 flex items-center gap-1">
-                  Access Token (PAT){" "}
+                  Access Token (PAT - Classic){" "}
                   <Key size={12} className="text-slate-400" />
                 </label>
                 <input
@@ -294,8 +294,36 @@ export default function SettingsPage() {
                   onChange={(e) => setFormToken(e.target.value)}
                 />
                 <p className="text-[10px] text-gray-400 dark:text-slate-500 mt-1">
-                  Use a generated Personal Access Token, not your password.
+                  Use a generated Personal Access Token (Classic recommended).
                 </p>
+              </div>
+
+              <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-100 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
+                <div className="font-bold mb-1 flex items-center gap-1.5">
+                  <AlertCircle size={12} className="text-blue-500" />
+                  Required Permissions:
+                </div>
+                {modalType === "GITHUB" ? (
+                  <ul className="list-disc list-inside space-y-0.5 ml-1">
+                    <li>
+                      <span className="font-mono text-blue-600 dark:text-blue-400">repo</span>{" "}
+                      (Full control of private repositories)
+                    </li>
+                    <li>
+                      <span className="font-mono text-blue-600 dark:text-blue-400">read:user</span>{" "}
+                      (Read user profile data)
+                    </li>
+                  </ul>
+                ) : (
+                  <ul className="list-disc list-inside space-y-0.5 ml-1">
+                    <li>
+                      <span className="font-bold">Read & Write</span> Access
+                    </li>
+                    <li>
+                      Must enable <span className="font-bold">Push & Pull</span> permissions
+                    </li>
+                  </ul>
+                )}
               </div>
 
               <div className="flex items-center gap-2 pt-2">

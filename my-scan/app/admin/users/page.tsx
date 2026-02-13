@@ -1,308 +1,356 @@
-// app/admin/users/page.tsx
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import useSWR from "swr";
 import { useSession } from "next-auth/react";
-import {
-  UserCheck,
-  UserX,
+import { useState } from "react";
+import { 
+  Shield, 
+  User as UserIcon, 
   Search,
-  Loader2,
-  RotateCcw,
-  Shield,
-  User as UserIcon,
-  Filter,
+  ChevronLeft,
+  ChevronRight,
+  ArrowUpDown,
+  MoreVertical,
+  AlertTriangle
 } from "lucide-react";
+import Link from "next/link";
 
-export default function ManageUsersPage() {
-  const [users, setUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+// Types
+interface User {
+  id: string;
+  name: string | null;
+  email: string | null;
+  role: "ADMIN" | "user";
+  status: "ACTIVE" | "PENDING" | "REJECTED";
+  image: string | null;
+  createdAt: string;
+  provider: string; 
+  stats: {
+    projects: number;
+    services: number;
+    scans: number;
+  };
+}
+
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error("Failed to fetch");
+  }
+  return res.json();
+};
+
+export default function AdminUsersPage() {
+  const { data: session } = useSession();
+  const { data: users, error, mutate } = useSWR<User[]>("/api/admin/users", fetcher);
+  
+  // State
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState("ALL");
-  const { data: session } = useSession(); // ดึงข้อมูล session
-  const currentUserId = (session?.user as any)?.id; // เก็บ id ของ admin ที่กำลังใช้งานอยู่
+  const [activeTab, setActiveTab] = useState<"ALL" | "ADMIN" | "USER" | "PENDING">("ALL");
+  const [sortField, setSortField] = useState<keyof User | "stats.projects">("createdAt");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
 
-  // useCallback ครอบ fetchUsers เพื่อให้เรียกใช้ซ้ำได้เสถียรขึ้น
-  const fetchUsers = useCallback(async (isAutoRefresh = false) => {
-    // ถ้าเป็นการ auto refresh ไม่ต้องเซต loading เป็น true เพื่อไม่ให้หน้าจอ flicker
-    if (!isAutoRefresh) setLoading(true);
+  const isLoading = !users && !error;
+  
+  // Stats
+  const userList = Array.isArray(users) ? users : [];
+  const totalAdmins = userList.filter(u => u.role === "ADMIN").length || 0;
+  const totalStandard = userList.filter(u => u.role !== "ADMIN").length || 0;
 
-    try {
-      const res = await fetch("/api/admin/users");
-      if (res.ok) {
-        const data = await res.json();
-        setUsers(data);
-      }
-    } catch (error) {
-      console.error("Failed to fetch users:", error);
-    } finally {
-      if (!isAutoRefresh) setLoading(false);
-    }
-  }, []);
-
-  // Timer สำหรับ Auto Refresh
-  useEffect(() => {
-    // เรียกครั้งแรกตอนโหลดหน้า
-    fetchUsers();
-    // Refresh ทุกๆ 10 วินาที (10000 ms)
-    const interval = setInterval(() => {
-      fetchUsers(true); // ส่ง true เพื่อบอกว่าเป็น auto refresh
-      console.log("Auto-refreshed users data");
-    }, 10000);
-
-    // ล้าง Timer เมื่อออกจากหน้าจอ เพื่อกัน memory leak
-    return () => clearInterval(interval);
-  }, [fetchUsers]);
-
-  const handleUpdateStatus = async (userId: string, newStatus: string) => {
-    try {
-      const res = await fetch("/api/admin/users", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, status: newStatus }),
-      });
-      if (res.ok) {
-        // อัปเดตข้อมูลใน UI ทันทีหลังบันทึกสำเร็จ
-        fetchUsers();
-      }
-    } catch (error) {
-      alert("Failed to update user status");
+  // Handlers
+  const handleSort = (field: keyof User | "stats.projects") => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
     }
   };
 
-  // Logic การกรองข้อมูล (Search + Status Filter)
-  const filteredUsers = users.filter((u) => {
-    const matchesSearch =
-      u.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.email?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === "ALL" || u.status === filterStatus;
-    return matchesSearch && matchesStatus;
+  const handleAction = async (userId: string, action: "PROMOTE" | "DEMOTE" | "REJECT" | "APPROVE") => {
+    if (!confirm(`Are you sure you want to ${action} this user?`)) return;
+
+    setLoadingAction(userId);
+    try {
+      const res = await fetch("/api/admin/users/role", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, action }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || "Action failed");
+      } else {
+        mutate(); // Refresh list
+      }
+    } catch (err) {
+      alert("An unexpected error occurred");
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
+  // Filter & Sort Logic
+  const filteredUsers = userList.filter(user => {
+    // 1. Search
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch = 
+        user.name?.toLowerCase().includes(searchLower) ||
+        user.email?.toLowerCase().includes(searchLower);
+    
+    if(!matchesSearch) return false;
+
+    // 2. Tab Filter
+    if (activeTab === "ALL") return true;
+    if (activeTab === "ADMIN") return user.role === "ADMIN";
+    if (activeTab === "USER") return user.role !== "ADMIN" && user.status !== "PENDING" && user.status !== "REJECTED";
+    if (activeTab === "PENDING") return user.status === "PENDING" || user.status === "REJECTED";
+
+    return true;
+  }).sort((a, b) => {
+      // 3. Sorting
+      let valA: any = a[sortField as keyof User];
+      let valB: any = b[sortField as keyof User];
+
+      if (sortField === "stats.projects") {
+          valA = a.stats?.projects || 0;
+          valB = b.stats?.projects || 0;
+      }
+
+      if (valA === valB) return 0;
+      
+      const comparison = valA > valB ? 1 : -1;
+      return sortDirection === "asc" ? comparison : -comparison;
   });
 
-  if (loading && users.length === 0)
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-center">
-          <Loader2
-            className="animate-spin mx-auto text-blue-600 mb-4"
-            size={40}
-          />
-          <p className="text-slate-500 font-medium">Loading users data...</p>
-        </div>
-      </div>
-    );
+  // Pagination Logic
+  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+  const paginatedUsers = filteredUsers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  if (session?.user.role !== "admin") {
+      return <div className="p-8 text-center text-red-500">Unauthorized Access</div>;
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6 md:p-10">
-      <div className="max-w-7xl mx-auto">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
-              <Shield className="text-blue-600 dark:text-blue-400" />
-              User Management
-            </h1>
-            <p className="text-slate-500 dark:text-slate-400 mt-1">
-              Review, approve, or block users within the VisScan system.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3">
-            {/* Filter Status */}
-            <div className="relative">
-              <Filter
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                size={16}
-              />
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 ring-blue-500 appearance-none cursor-pointer text-slate-900 dark:text-white"
-              >
-                <option value="ALL">All Status</option>
-                <option value="PENDING">Pending</option>
-                <option value="APPROVED">Approved</option>
-                <option value="REJECTED">Rejected</option>
-              </select>
-            </div>
-
-            {/* Search Bar */}
-            <div className="relative">
-              <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                size={18}
-              />
-              <input
-                type="text"
-                placeholder="Search by name or email..."
-                className="pl-10 pr-4 py-2 w-full sm:w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 ring-blue-500 text-slate-900 dark:text-white placeholder:text-slate-400"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-          </div>
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            User Management
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
+            Total {userList.length} users · {totalAdmins} Admins · {totalStandard} Users
+          </p>
         </div>
-
-        {/* Users Table Card */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-700 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
-                  <th className="p-5">User Profile</th>
-                  <th className="p-5">Status</th>
-                  <th className="p-5">Access Role</th>
-                  <th className="p-5">Setup</th>
-                  <th className="p-5 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {filteredUsers.length > 0 ? (
-                  filteredUsers.map((user) => (
-                    <tr
-                      key={user.id}
-                      className="hover:bg-slate-50/30 dark:hover:bg-slate-800/30 transition-colors"
-                    >
-                      <td className="p-5">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-sm border border-blue-200 dark:border-blue-900/30">
-                            {user.image ? (
-                              <img
-                                src={user.image}
-                                alt=""
-                                className="w-full h-full rounded-full"
-                              />
-                            ) : (
-                              <UserIcon size={20} />
-                            )}
-                          </div>
-                          <div>
-                            <div className="font-semibold text-slate-900 dark:text-slate-200">
-                              {user.name || "Unknown User"}
-                            </div>
-                            <div className="text-xs text-slate-500 dark:text-slate-500 flex items-center gap-1">
-                              <Search size={12} /> {user.email}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-5">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-tight ${
-                            user.status === "APPROVED"
-                              ? "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-900/30"
-                              : user.status === "PENDING"
-                              ? "bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900/30"
-                              : "bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-900/30"
-                          }`}
-                        >
-                          {user.status}
-                        </span>
-                      </td>
-                      <td className="p-5">
-                        <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 font-mono text-xs">
-                          {user.role === "admin" ? (
-                            <Shield size={14} className="text-purple-500" />
-                          ) : null}
-                          {user.role}
-                        </div>
-                      </td>
-                      <td className="p-5">
-                        <div
-                          className={`text-xs font-medium ${
-                            user.isSetupComplete
-                              ? "text-green-600 dark:text-green-400"
-                              : "text-slate-400 dark:text-slate-500"
-                          }`}
-                        >
-                          {user.isSetupComplete ? "Ready" : "Not Started"}
-                        </div>
-                      </td>
-                      <td className="p-5 text-right">
-                        <div className="flex justify-end gap-1">
-                          {/* ถ้าเป็นตัวเราเอง or ถ้าคนนั้นเป็น Admin ให้ซ่อนปุ่ม Actions */}
-                          {user.id === currentUserId ? (
-                            <span className="text-xs text-blue-600 dark:text-blue-400 font-medium px-2 py-1 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                              You (Current Admin)
-                            </span>
-                          ) : user.role === "admin" ? (
-                            <span className="text-xs text-purple-600 dark:text-purple-400 font-medium px-2 py-1 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center gap-1">
-                              <Shield size={12} /> Admin Colleague
-                            </span>
-                          ) : (
-                            <>
-                              {/* ปุ่ม Approve แสดงเมื่อสถานะไม่ใช่ APPROVED */}
-                              {user.status !== "APPROVED" && (
-                                <button
-                                  onClick={() =>
-                                    handleUpdateStatus(user.id, "APPROVED")
-                                  }
-                                  className="p-2 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-all active:scale-95"
-                                  title="Approve User"
-                                >
-                                  <UserCheck size={20} />
-                                </button>
-                              )}
-
-                              {/* ปุ่ม Reject แสดงเมื่อสถานะไม่ใช่ REJECTED */}
-                              {user.status !== "REJECTED" && (
-                                <button
-                                  onClick={() =>
-                                    handleUpdateStatus(user.id, "REJECTED")
-                                  }
-                                  className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all active:scale-95"
-                                  title="Reject/Block User"
-                                >
-                                  <UserX size={20} />
-                                </button>
-                              )}
-
-                              {/* ปุ่ม Reset to Pending */}
-                              {(user.status === "APPROVED" ||
-                                user.status === "REJECTED") && (
-                                <button
-                                  onClick={() =>
-                                    handleUpdateStatus(user.id, "PENDING")
-                                  }
-                                  className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all active:scale-95"
-                                  title="Move back to Pending"
-                                >
-                                  <RotateCcw size={20} />
-                                </button>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={5} className="p-20 text-center">
-                      <div className="flex flex-col items-center gap-2 text-slate-400 dark:text-slate-500">
-                        <UserIcon size={48} className="opacity-20" />
-                        <p className="text-lg font-medium text-slate-500 dark:text-slate-400">No users found</p>
-                        <p className="text-sm">
-                          Try adjusting your search or filter
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Footer Info */}
-          <div className="bg-slate-50/50 dark:bg-slate-800/50 p-4 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 flex justify-between items-center">
-            <p>Showing {filteredUsers.length} total users</p>
-            <p>
-              Admin: {users.filter((u) => u.role === "admin").length} | Pending:{" "}
-              {users.filter((u) => u.status === "PENDING").length}
-            </p>
-          </div>
+        
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input 
+            type="text" 
+            placeholder="Search users..." 
+            value={searchTerm}
+            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+            className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg pl-9 pr-4 py-2 text-sm text-gray-900 dark:text-white focus:ring-1 focus:ring-gray-300 dark:focus:ring-gray-700 outline-none transition-all"
+          />
         </div>
       </div>
+
+      {/* Tabs */}
+      <div className="flex items-center gap-1 border-b border-gray-200 dark:border-gray-800 overflow-x-auto">
+        {[
+            { id: "ALL", label: "All Users" },
+            { id: "ADMIN", label: "Admins" },
+            { id: "USER", label: "Standard" },
+            { id: "PENDING", label: "Pending" }
+        ].map(tab => (
+            <button
+                key={tab.id}
+                onClick={() => { setActiveTab(tab.id as any); setCurrentPage(1); }}
+                className={`px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                    activeTab === tab.id 
+                    ? "border-black dark:border-white text-black dark:text-white" 
+                    : "border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                }`}
+            >
+                {tab.label}
+            </button>
+        ))}
+      </div>
+
+      {/* Table Card */}
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden shadow-sm">
+        <div className="overflow-x-auto min-h-[400px]">
+          <table className="w-full text-left text-sm text-gray-500 dark:text-gray-400">
+            <thead className="bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-800">
+              <tr>
+                <SortHeader label="User" field="name" currentSort={sortField} currentDirection={sortDirection} onSort={handleSort} />
+                <SortHeader label="Role" field="role" currentSort={sortField} currentDirection={sortDirection} onSort={handleSort} />
+                <SortHeader label="Projects" field="stats.projects" currentSort={sortField} currentDirection={sortDirection} onSort={handleSort} />
+                <SortHeader label="Status" field="status" currentSort={sortField} currentDirection={sortDirection} onSort={handleSort} />
+                <SortHeader label="Joined" field="createdAt" currentSort={sortField} currentDirection={sortDirection} onSort={handleSort} />
+                <th className="px-6 py-3 font-medium text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+              {isLoading ? (
+                <tr>
+                   <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                     Loading...
+                   </td>
+                </tr>
+              ) : paginatedUsers.length === 0 ? (
+                <tr>
+                   <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                     No users found.
+                   </td>
+                </tr>
+              ) : (
+                paginatedUsers.map((user) => (
+                  <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors group">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden border border-gray-200 dark:border-gray-700 shrink-0">
+                          {user.image ? (
+                            <img src={user.image} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            <span className="text-xs font-bold text-gray-400">
+                              {user.name?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || "?"}
+                            </span>
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-white">
+                            {user.name || <span className="text-gray-400 italic">No Name</span>}
+                          </div>
+                          <div className="text-xs text-gray-500">{user.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium border ${
+                         user.role === 'ADMIN' 
+                         ? 'bg-gray-100 border-gray-300 text-gray-800 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200' 
+                         : 'bg-white border-gray-200 text-gray-600 dark:bg-transparent dark:border-gray-700 dark:text-gray-400'
+                      }`}>
+                        {user.role}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                        <span className="text-gray-900 dark:text-white font-medium">{user.stats?.projects || 0}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <StatusBadge status={user.status} />
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {new Date(user.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                       <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                          
+                          <Link 
+                            href={`/admin/users/${user.id}`}
+                            className="text-xs px-2.5 py-1.5 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-1.5 transition-colors font-medium shadow-sm"
+                          >
+                             Details
+                          </Link>
+                          
+                          {loadingAction === user.id ? (
+                            <span className="text-xs text-gray-500 animate-pulse">...</span>
+                          ) : (
+                            // Action Buttons (Promote/Ban)
+                            user.id !== session?.user.id && (
+                                <>
+                                    {user.role !== "ADMIN" && user.status !== "REJECTED" && (
+                                        <button 
+                                            onClick={() => handleAction(user.id, "PROMOTE")}
+                                            className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded transition-colors"
+                                            title="Promote to Admin"
+                                        >
+                                            <Shield className="w-4 h-4" />
+                                        </button>
+                                    )}
+
+                                    {user.status === "REJECTED" || user.status === "PENDING" ? (
+                                         <button 
+                                            onClick={() => handleAction(user.id, "APPROVE")}
+                                            className="text-xs px-2 py-1 rounded bg-green-50 text-green-700 border border-green-200 hover:bg-green-100"
+                                         >
+                                            Approve
+                                         </button>
+                                    ) : (
+                                        <button 
+                                            onClick={() => handleAction(user.id, "REJECT")}
+                                            className="text-xs px-2 py-1 rounded hover:bg-red-50 text-red-600 border border-transparent hover:border-red-200 transition-colors"
+                                            title="Ban User"
+                                        >
+                                            Ban
+                                        </button>
+                                    )}
+                                </>
+                            )
+                          )}
+                       </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        
+        {/* Pagination */}
+        <div className="border-t border-gray-200 dark:border-gray-800 px-6 py-4 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50">
+             <div className="text-sm text-gray-500 dark:text-gray-400">
+                Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium">{Math.min(currentPage * itemsPerPage, filteredUsers.length)}</span> of <span className="font-medium">{filteredUsers.length}</span> results
+             </div>
+             <div className="flex items-center gap-2">
+                <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="p-1 px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+                >
+                    Previous
+                </button>
+                <div className="text-sm font-medium">Page {currentPage} of {totalPages || 1}</div>
+                <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages || totalPages === 0}
+                    className="p-1 px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+                >
+                    Next
+                </button>
+             </div>
+        </div>
+      </div>
+
     </div>
   );
+}
+
+function SortHeader({ label, field, currentSort, currentDirection, onSort }: any) {
+    return (
+        <th 
+            className="px-6 py-3 font-medium cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors select-none"
+            onClick={() => onSort(field)}
+        >
+            <div className="flex items-center gap-1">
+                {label}
+                {currentSort === field && (
+                    <ArrowUpDown className={`w-3 h-3 ${currentDirection === 'asc' ? 'rotate-180' : ''} transition-transform`} />
+                )}
+            </div>
+        </th>
+    )
+}
+
+function StatusBadge({ status }: { status: string }) {
+    if (status === "ACTIVE") return <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>Active</span>;
+    if (status === "PENDING") return <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700 border border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800"><div className="w-1.5 h-1.5 rounded-full bg-yellow-500"></div>Pending</span>;
+    if (status === "REJECTED") return <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800"><div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>Banned</span>;
+    return <span className="text-xs">{status}</span>;
 }

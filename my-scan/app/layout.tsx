@@ -3,7 +3,13 @@ import React from "react";
 import { Providers } from "./providers";
 import ActiveScanMonitor from "@/components/ActiveScanMonitor";
 
-export const metadata = { title: "Vis Scan", description: "Code scanning UI" };
+export const metadata = {
+  title: "Vis Scan",
+  description: "Code scanning UI",
+  icons: {
+    icon: "/icon",
+  },
+};
 
 export default function RootLayout({
   children,

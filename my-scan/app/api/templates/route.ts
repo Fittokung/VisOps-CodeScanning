@@ -173,9 +173,28 @@ CMD ["echo", "Build Complete - Ready for scanning"]
 }
 
 // POST: Admin แก้ไข Template (บันทึกลง Database)
-// ส่วนนี้เหมือนเดิมครับ ใช้งานได้ดีแล้ว
+// Secured: Only Admins can update templates
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+
 export async function POST(req: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    
+    // Check Authentication
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check Authorization (Admin only)
+    const userRole = (session.user as any).role;
+    if (userRole !== "ADMIN") { // Check both casing to be safe, though usually ADMIN from auth.ts
+       return NextResponse.json(
+        { error: "Forbidden: Admin access required" },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
     const { stack, content } = body;
 

@@ -82,11 +82,12 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   // Case 2: Authenticated User -> แสดง Sidebar + Navbar Layout
   const user = session.user as any;
   const isAdmin = user?.role === "admin";
+  const isSuperAdmin = user?.email === "admin@local";
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-slate-950 overflow-hidden">
       {/* 1. Left Sidebar */}
-      <Sidebar isAdmin={isAdmin} />
+      <Sidebar isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} />
 
       {/* 2. Main Content Wrapper */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">

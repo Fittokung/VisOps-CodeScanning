@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, Suspense } from "react";
+import useSWR from "swr";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Loader2,
@@ -21,6 +22,18 @@ import DuplicateServiceWarning from "@/components/DuplicateServiceWarning";
 // Use shared components
 import AccountSelector from "./ui/AccountSelector";
 
+const TEMPLATE_OPTIONS = [
+  { value: "node", label: "Node.js" },
+  { value: "python", label: "Python" },
+  { value: "java-maven", label: "Java (Maven)" },
+  { value: "go", label: "Go Lang" },
+  { value: "dotnet", label: ".NET Core" },
+  { value: "php", label: "PHP" },
+  { value: "ruby", label: "Ruby" },
+  { value: "rust", label: "Rust" },
+  { value: "default", label: "Generic / Trivy" },
+];
+
 type Props = {
   buildMode: boolean;
 };
@@ -33,8 +46,7 @@ function ScanFormContent({ buildMode }: Props) {
   const paramContext = searchParams.get("context") || "";
 
   // State
-  const [credentials, setCredentials] = useState<any[]>([]);
-  const [credentialsLoading, setCredentialsLoading] = useState(true);
+  // credentials & credentialsLoading are now managed by SWR
   const [selectedGitId, setSelectedGitId] = useState("");
   const [selectedDockerId, setSelectedDockerId] = useState("");
 
@@ -50,6 +62,7 @@ function ScanFormContent({ buildMode }: Props) {
 
   const [useCustomDockerfile, setUseCustomDockerfile] = useState(false);
   const [customDockerfileContent, setCustomDockerfileContent] = useState("");
+  const [selectedTemplate, setSelectedTemplate] = useState("");
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -57,36 +70,71 @@ function ScanFormContent({ buildMode }: Props) {
   const [duplicateService, setDuplicateService] = useState<any>(null);
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
 
+  // Data Fetching with SWR
+  const { data: credentialsData, isLoading: credentialsLoading } = useSWR(
+    "/api/user/settings/credentials",
+    async (url) => {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Failed to fetch credentials");
+      return res.json();
+    }
+  );
+
+  const credentials = credentialsData?.credentials || [];
+
+  // Auto-select defaults & Sync state
   useEffect(() => {
-    setCredentialsLoading(true);
-    fetch("/api/user/settings/credentials")
-      .then((r) => r.json())
-      .then((data) => {
-        const creds = data.credentials || [];
-        setCredentials(creds);
-        const defGit = creds.find(
-          (c: any) => c.provider === "GITHUB" && c.isDefault,
+    if (credentials.length > 0) {
+      // 1. Sync: Clear selected ID if it no longer exists in current credentials
+      if (selectedGitId && !credentials.find((c: any) => c.id === selectedGitId)) {
+        setSelectedGitId("");
+      }
+      if (selectedDockerId && !credentials.find((c: any) => c.id === selectedDockerId)) {
+        setSelectedDockerId("");
+      }
+
+      // 2. Auto-select defaults if nothing selected
+      if (!selectedGitId) {
+        // ... (existing logic)
+        const defGit = credentials.find(
+          (c: any) => c.provider === "GITHUB" && c.isDefault
         );
         if (defGit) setSelectedGitId(defGit.id);
-        if (buildMode) {
-          const defDocker = creds.find(
-            (c: any) => c.provider === "DOCKER" && c.isDefault,
-          );
-          if (defDocker) setSelectedDockerId(defDocker.id);
+         // Fallback: If no default, pick first available
+        else {
+           const firstGit = credentials.find((c: any) => c.provider === "GITHUB");
+           if (firstGit) setSelectedGitId(firstGit.id);
         }
-      })
-      .finally(() => setCredentialsLoading(false));
-  }, [buildMode]);
+      }
+      
+      if (buildMode && !selectedDockerId) {
+        const defDocker = credentials.find(
+          (c: any) => c.provider === "DOCKER" && c.isDefault
+        );
+        if (defDocker) setSelectedDockerId(defDocker.id);
+        // Fallback
+        else {
+           const firstDocker = credentials.find((c: any) => c.provider === "DOCKER");
+           if (firstDocker) setSelectedDockerId(firstDocker.id);
+        }
+      }
+    }
+  }, [credentials, buildMode, selectedGitId, selectedDockerId]);
 
-  const gitOptions = credentials.filter((c) => c.provider === "GITHUB");
-  const dockerOptions = credentials.filter((c) => c.provider === "DOCKER");
-  const selectedDockerCred = credentials.find((c) => c.id === selectedDockerId);
+  const gitOptions = credentials.filter((c: any) => c.provider === "GITHUB");
+  const dockerOptions = credentials.filter((c: any) => c.provider === "DOCKER");
+  const selectedDockerCred = credentials.find((c: any) => c.id === selectedDockerId);
 
   async function onSubmit(e: React.FormEvent, forceCreate = false) {
     e.preventDefault();
-    if (!selectedGitId) return alert("Please select a GitHub account.");
+    if (!selectedGitId)
+      return alert(
+        "Missing GitHub Account. Please go to Settings > Identity & Access to add your GitHub Token."
+      );
     if (buildMode && !selectedDockerId)
-      return alert("Please select a Docker account.");
+      return alert(
+        "Missing Docker Account. Please go to Settings > Identity & Access to add your Docker Token."
+      );
     if (!serviceName) return alert("Service Name is required.");
 
     setLoading(true);
@@ -101,6 +149,7 @@ function ScanFormContent({ buildMode }: Props) {
           isPrivate: isPrivateRepo,
           gitCredentialId: selectedGitId,
           dockerCredentialId: buildMode ? selectedDockerId : undefined,
+          includeDocker: buildMode,
           serviceName,
           contextPath: buildContext || ".",
           imageName: buildMode ? imageName : serviceName + "-scan",
@@ -168,7 +217,7 @@ function ScanFormContent({ buildMode }: Props) {
                     : "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
                 }`}
               >
-                {buildMode ? <Server size={20} /> : <ShieldCheck size={20} />}
+                {/* {buildMode ? <Server size={20} /> : <ShieldCheck size={20} />} */}
               </div>
               <div>
                 <h2 className="text-lg font-bold text-slate-800 dark:text-white leading-none">
@@ -222,7 +271,7 @@ function ScanFormContent({ buildMode }: Props) {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase">
-                      Git URL
+                      Git/GitHub URL
                     </label>
                     <input
                       type="url"
@@ -355,6 +404,13 @@ function ScanFormContent({ buildMode }: Props) {
                         ? "Edit Custom Dockerfile"
                         : "Customize Dockerfile"}
                     </button>
+                    {useCustomDockerfile && selectedTemplate && (
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300">
+                        <Code2 size={14} />
+                        <span className="font-semibold">Template:</span>
+                        {TEMPLATE_OPTIONS.find((t) => t.value === selectedTemplate)?.label}
+                      </div>
+                    )}
                   </div>
                 </>
               ) : (
@@ -381,21 +437,24 @@ function ScanFormContent({ buildMode }: Props) {
                     </p>
                   </div>
 
-                  <div className="mb-auto">
-                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase">
-                      Scanner Level
-                    </label>
-                    <select
-                      value={trivyScanMode}
-                      onChange={(e) =>
-                        setTrivyScanMode(e.target.value as "fast" | "full")
-                      }
-                      className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all"
-                    >
-                      <option value="fast">Fast (Gitleaks + Semgrep)</option>
-                      <option value="full">Full (+ Dependency Check)</option>
-                    </select>
-                  </div>
+                  {/* ✅ Hide Scanner Level for Scan Only (Not implemented yet) */}
+                  {buildMode && (
+                    <div className="mb-auto">
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase">
+                        Scanner Level
+                      </label>
+                      <select
+                        value={trivyScanMode}
+                        onChange={(e) =>
+                          setTrivyScanMode(e.target.value as "fast" | "full")
+                        }
+                        className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all"
+                      >
+                        <option value="fast">Fast (Gitleaks + Semgrep)</option>
+                        <option value="full">Full (+ Dependency Check)</option>
+                      </select>
+                    </div>
+                  )}
                 </>
               )}
 
@@ -443,6 +502,42 @@ function ScanFormContent({ buildMode }: Props) {
                 <X />
               </button>
             </div>
+            
+            {/* Template Selector Bar */}
+            <div className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-2 flex items-center gap-3">
+               <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Apply Template:</span>
+               <select 
+                 className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm rounded px-3 py-1 outline-none focus:ring-2 focus:ring-blue-500/50"
+                 value={selectedTemplate}
+                 onChange={async (e) => {
+                    const stack = e.target.value;
+                    if(stack) {
+                       if(customDockerfileContent && !confirm("Overwrite current Dockerfile content?")) return;
+                       
+                       try {
+                         const res = await fetch(`/api/templates?stack=${stack}`);
+                         const text = await res.text();
+                         setCustomDockerfileContent(text);
+                         setUseCustomDockerfile(true);
+                         setSelectedTemplate(stack);
+                       } catch(err) {
+                         alert("Failed to load template");
+                       }
+                    }
+                 }}
+               >
+                  <option value="" disabled>-- Select a Preset --</option>
+                  {TEMPLATE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+               </select>
+               <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto">
+                 Presets managed by Admin
+               </span>
+            </div>
+
             <div className="flex-1 bg-[#1e1e1e]">
               <textarea
                 className="w-full h-full bg-transparent text-slate-200 font-mono p-4 outline-none resize-none"

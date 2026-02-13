@@ -16,9 +16,10 @@ import {
 
 interface SidebarProps {
   isAdmin: boolean;
+  isSuperAdmin: boolean;
 }
 
-export default function Sidebar({ isAdmin }: SidebarProps) {
+export default function Sidebar({ isAdmin, isSuperAdmin }: SidebarProps) {
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -39,6 +40,7 @@ export default function Sidebar({ isAdmin }: SidebarProps) {
     { label: "All Scans", href: "/admin/history", icon: ShieldCheck },
     { label: "Templates", href: "/admin/template", icon: FileCode },
     { label: "Users", href: "/admin/users", icon: Users },
+    ...(isSuperAdmin ? [{ label: "Settings", href: "/admin/settings", icon: ShieldCheck }] : []),
   ];
 
   const isActive = (path: string) =>
@@ -175,11 +177,11 @@ export default function Sidebar({ isAdmin }: SidebarProps) {
             <div className="space-y-1">
               <div
                 className={`px-3 mb-3 transition-all duration-300 ${
-                  isCollapsed ? "border-t border-gray-100 pt-4 text-center" : ""
+                  isCollapsed ? "border-t border-gray-100 dark:border-slate-800 pt-4 text-center" : ""
                 }`}
               >
                 <p
-                  className={`text-xs font-bold text-gray-400 uppercase tracking-wider ${
+                  className={`text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider ${
                     isCollapsed ? "text-[10px]" : ""
                   }`}
                 >
@@ -195,16 +197,16 @@ export default function Sidebar({ isAdmin }: SidebarProps) {
                   onMouseLeave={handleMouseLeave}
                   className={`relative flex items-center gap-3 px-3 py-3 text-sm font-medium rounded-xl transition-all duration-200 group ${
                     isActive(item.href)
-                      ? "bg-purple-50 text-purple-700 shadow-sm"
-                      : "text-gray-500 hover:bg-white hover:shadow-md hover:text-gray-900"
+                      ? "bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 shadow-sm"
+                      : "text-gray-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md dark:hover:shadow-none hover:text-gray-900 dark:hover:text-gray-200"
                   }`}
                 >
                   <item.icon
                     size={20}
                     className={`shrink-0 transition-colors ${
                       isActive(item.href)
-                        ? "text-purple-600"
-                        : "text-gray-400 group-hover:text-gray-600"
+                        ? "text-purple-600 dark:text-purple-400"
+                        : "text-gray-400 dark:text-slate-500 group-hover:text-gray-600 dark:group-hover:text-slate-300"
                     }`}
                   />
                   <span

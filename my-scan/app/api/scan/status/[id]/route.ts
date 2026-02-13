@@ -137,12 +137,12 @@ export async function GET(
       durationString = formatDuration((end - start) / 1000);
     }
 
-    let counts = { critical: 0, high: 0, medium: 0, low: 0 };
-    let findings: VulnerabilityFinding[] = [];
-    let logs: string[] = [`Pipeline: ${id}`, `Status: ${gitlabStatus}`];
+    const counts = { critical: 0, high: 0, medium: 0, low: 0 };
+    const findings: VulnerabilityFinding[] = [];
+    const logs: string[] = [`Pipeline: ${id}`, `Status: ${gitlabStatus}`];
 
     // เก็บ Raw Reports สำหรับให้ User Download
-    let rawReports: Record<string, any> = {};
+    const rawReports: Record<string, any> = {};
 
     // Status ที่จะส่งกลับ Frontend (keep UPPERCASE for consistency)
     let finalStatus = gitlabStatus === "SUCCESS" ? "SUCCESS" : gitlabStatus;

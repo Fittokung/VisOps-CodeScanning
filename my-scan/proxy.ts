@@ -10,22 +10,44 @@ export default withAuth(
     const token = req.nextauth.token;
     const pathname = req.nextUrl.pathname;
     
-    // Check user status (PENDING or REJECTED = blocked)
-    const isBlocked = token?.status === UserStatus.PENDING || token?.status === UserStatus.REJECTED;
-    const isPendingPage = pathname.startsWith("/pending");
-    const isAdminPage = pathname.startsWith("/admin");
+    // Status Checks
+    const isPending = token?.status === UserStatus.PENDING;
+    const isRejected = token?.status === UserStatus.REJECTED;
     
-    // 1. Blocked users can only access /pending page
-    if (isBlocked && !isPendingPage) {
-      return NextResponse.redirect(new URL("/pending", req.url));
+    const isPendingPage = pathname === "/pending";
+    const isBannedPage = pathname === "/banned";
+    const isAdminPage = pathname.startsWith("/admin");
+    const isAdminLoginPage = pathname === "/admin/login";
+
+    // 0. Admin Login Page Logic
+    // If logged in as ADMIN, redirect to dashboard (don't show login page)
+    if (isAdminLoginPage && token && token.role === UserRoles.ADMIN) {
+         return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+    // If accessing admin login page, allow it (logic handled by page or Authorized callback)
+    if (isAdminLoginPage) {
+        return NextResponse.next();
     }
     
-    // 2. Approved users shouldn't be on /pending page
-    if (!isBlocked && isPendingPage) {
+    // 1. Rejected Users -> /banned
+    if (isRejected && !isBannedPage) {
+      return NextResponse.redirect(new URL("/banned", req.url));
+    }
+    if (!isRejected && isBannedPage) {
+        // Active users shouldn't be on /banned
+        return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+
+    // 2. Pending Users -> /pending
+    if (isPending && !isPendingPage && !isBannedPage) {
+      // Allow them to see /banned if they get rejected, but mainly /pending
+      return NextResponse.redirect(new URL("/pending", req.url));
+    }
+    if (!isPending && isPendingPage) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
     
-    // 3. Only admins can access /admin pages
+    // 3. Admin Routes Protection
     if (isAdminPage && token?.role !== UserRoles.ADMIN) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
@@ -34,9 +56,18 @@ export default withAuth(
   },
   {
     callbacks: {
-      // Verify token exists (redirects to login if not)
-      authorized: ({ token }) => !!token,
+      authorized: ({ token, req }) => {
+        // Allow access to admin login page without token
+        if (req.nextUrl.pathname === "/admin/login") {
+            return true;
+        }
+        // Require token for everything else in matcher
+        return !!token;
+      },
     },
+    pages: {
+        signIn: "/login",
+    }
   }
 );
 
@@ -50,5 +81,6 @@ export const config = {
     "/settings/:path*",
     "/services/:path*",
     "/pending",
+    "/banned",
   ],
 };

@@ -389,12 +389,12 @@ function ScanHistoryContent() {
                             className={`text-[10px] font-bold px-2 py-1 rounded-full border ${
                               scan.scanMode === "SCAN_ONLY"
                                 ? "bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border-purple-100 dark:border-purple-900/30"
-                                : "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 border-indigo-100 dark:border-indigo-900/30"
+                                : "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-100 dark:border-blue-900/30"
                             }`}
                           >
                             {scan.scanMode === "SCAN_ONLY"
-                              ? "SCAN ONLY"
-                              : "BUILD & SCAN"}
+                              ? "Scan Only"
+                              : "Scan & Build"}
                           </span>
                         </td>
 

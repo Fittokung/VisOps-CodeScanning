@@ -85,7 +85,7 @@ export default async function ScanPage(props: Props) {
                         : "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-900/30"
                     }`}
                   >
-                    {isScanOnly ? "Security Audit" : "Build & Scan"}
+                    {isScanOnly ? "Security Audit" : "Scan & Build"}
                   </span>
                 </h1>
 

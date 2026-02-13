@@ -1,4 +1,4 @@
-// ✅ 1. ใส่บรรทัดนี้ไว้บนสุด เพื่อให้ Worker อ่านค่าจาก .env ได้
+// [INFO] 1. Ensure this line is at the top to load .env configs
 import "dotenv/config";
 
 import amqp, { Channel, ConsumeMessage } from "amqplib";
@@ -14,33 +14,39 @@ import {
 
 // --- Configuration ---
 const RABBITMQ_URL = process.env.RABBITMQ_URL || "amqp://localhost:5672";
-// ✅ เช็คให้ชัวร์ว่า URL มี /api/v4 ต่อท้าย
+// [INFO] Ensure URL has /api/v4 suffix
 const GITLAB_API_URL =
   process.env.GITLAB_API_URL || "https://gitlab.com/api/v4";
 const GITLAB_TRIGGER_TOKEN = process.env.GITLAB_TRIGGER_TOKEN;
-// ✅ ใช้ ID 141 ตามที่คุณระบุ (ถ้าจะเปลี่ยนให้ไปแก้ใน .env หรือแก้ตรงนี้)
-const GITLAB_PROJECT_ID = process.env.GITLAB_PROJECT_ID || "141";
+// [INFO] Use ID 141 as specified (change in .env if needed)
+const GITLAB_PROJECT_ID = process.env.GITLAB_PROJECT_ID;
+if (!GITLAB_PROJECT_ID) {
+  throw new Error("❌ CRITICAL: GITLAB_PROJECT_ID is missing in .env");
+}
 
-// Debug: เช็คว่า Token มาจริงไหม (จะแสดงแค่ 4 ตัวท้าย)
+// Debug: Check if Token exists (showing last 4 chars)
 if (!GITLAB_TRIGGER_TOKEN) {
-  console.error("❌ CRITICAL: GITLAB_TRIGGER_TOKEN is missing in .env");
+  console.error("[CRITICAL] GITLAB_TRIGGER_TOKEN is missing in .env");
 } else {
-  console.log(`✅ Loaded Trigger Token: ...${GITLAB_TRIGGER_TOKEN.slice(-4)}`);
+  console.log(`[INFO] Loaded Trigger Token: ...${GITLAB_TRIGGER_TOKEN.slice(-4)}`);
 }
 
 const prisma = new PrismaClient();
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let connection: any = null;
 
 async function startWorker() {
-  console.log("🚀 Starting VisScan Multi-Lane Worker...");
+  console.log("[INFO] Starting VisScan Multi-Lane Worker...");
   console.log(`   - Target Project ID: ${GITLAB_PROJECT_ID}`); // Show Project ID
   console.log(`   - Build Lane: 4 concurrent jobs`);
   console.log(`   - Scan Lane:  6 concurrent jobs`);
 
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const conn = (await amqp.connect(RABBITMQ_URL)) as any;
     connection = conn;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     conn.on("error", (err: any) =>
       console.error("[Worker] Connection error:", err),
     );
@@ -52,18 +58,22 @@ async function startWorker() {
     console.log("[Worker] Connected to RabbitMQ");
 
     // --- Channels ---
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const buildChannel = (await conn.createChannel()) as any;
     await setupQueue(buildChannel, BUILD_QUEUE_NAME);
-    // ✅ Limit concurrent Build & Scan jobs to 4 (Quota Rule)
+    // [INFO] Limit concurrent Build & Scan jobs to 4 (Quota Rule)
     // If all 4 slots are busy, new jobs will stay in RabbitMQ with status "QUEUED"
     await buildChannel.prefetch(4);
     buildChannel.consume(BUILD_QUEUE_NAME, (msg: ConsumeMessage | null) => {
       if (msg) handleMessage(msg, buildChannel);
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const scanChannel = (await conn.createChannel()) as any;
     await setupQueue(scanChannel, SCAN_QUEUE_NAME);
-    // ✅ Limit concurrent Scan Only jobs to 6 (Quota Rule)
+    // [INFO] Limit concurrent Scan Only jobs to 6 (Quota Rule)
     // Total concurrency = 4 (Build) + 6 (Scan) = 10 Max Users
     await scanChannel.prefetch(6);
     scanChannel.consume(SCAN_QUEUE_NAME, (msg: ConsumeMessage | null) => {
@@ -123,15 +133,16 @@ async function handleMessage(msg: ConsumeMessage, ch: Channel) {
       },
     });
 
-    console.log(`✅ Job ${job.id} triggered pipeline ${pipelineId}`);
+    console.log(`[INFO] Job ${job.id} triggered pipeline ${pipelineId}`);
     ch.ack(msg);
-  } catch (error: any) {
-    console.error(`❌ Job ${job.id} failed:`, error.message);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[ERROR] Job ${job.id} failed:`, errorMessage);
 
     // Debug Error จาก GitLab
     if (axios.isAxiosError(error) && error.response) {
       console.error(
-        "🔴 GitLab Response Data:",
+        "[ERROR] GitLab Response Data:",
         JSON.stringify(error.response.data, null, 2),
       );
     }
@@ -139,7 +150,7 @@ async function handleMessage(msg: ConsumeMessage, ch: Channel) {
     try {
       await prisma.scanHistory.update({
         where: { id: job.scanHistoryId },
-        data: { status: "FAILED_TRIGGER", errorMessage: error.message },
+        data: { status: "FAILED_TRIGGER", errorMessage: errorMessage },
       });
     } catch (dbError) {
       console.error("Failed to update DB status:", dbError);
@@ -174,30 +185,54 @@ async function triggerGitLab(job: ScanJob): Promise<number> {
 
     // --- ตัวแปรสำหรับแสดงผลชื่อ Pipeline (Display) ---
     PROJECT_NAME: projectPath, 
-    FRONTEND_USER: job.userId, 
+    FRONTEND_USER: job.username || "unknown_user", // [INFO] Use Username instead of ID
     USER_TAG: job.imageTag || "latest",
   };
 
   if (job.imageName) variables.IMAGE_NAME = job.imageName;
   if (job.customDockerfile) variables.CUSTOM_DOCKERFILE = job.customDockerfile;
 
+  // --- Debug Logging ---
+  console.log(`[GitLab Trigger] Preparing to trigger for Job ${job.id}`);
+  console.log(`   - Scan Mode: ${variables.SCAN_MODE}`);
+  console.log(`   - Repo: ${variables.USER_REPO_URL}`);
+  console.log(`   - Image: ${variables.IMAGE_NAME}:${variables.IMAGE_TAG}`);
+
   try {
+    // [FIX] Fix: Use URLSearchParams to send variables as form-data
+    // This is more reliable for GitLab Triggers than JSON body
+    const params = new URLSearchParams();
+    params.append("token", GITLAB_TRIGGER_TOKEN!);
+    params.append("ref", "main");
+    
+    // Append variables as variables[KEY]=VALUE
+    Object.entries(variables).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        params.append(`variables[${key}]`, String(value));
+      }
+    });
+
     const response = await axios.post(
       `${GITLAB_API_URL}/projects/${projectId}/trigger/pipeline`,
+      params, // Send data as form-urlencoded
       {
-        variables: variables,
-      },
-      {
-        params: {
-          token: GITLAB_TRIGGER_TOKEN,
-          ref: "main",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
         },
         timeout: 10000,
-      },
+      }
     );
     return response.data.id;
-  } catch (error: any) {
-    console.error(`❌ Failed URL: ${error.config?.url}`);
+  } catch (error: unknown) {
+    if (axios.isAxiosError(error)) {
+        console.error(`[ERROR] Failed URL: ${error.config?.url}`);
+        if (error.response) {
+            console.error(
+                "[ERROR] GitLab Error Response:",
+                JSON.stringify(error.response.data, null, 2)
+            );
+        }
+    }
     throw error;
   }
 }
@@ -218,9 +253,72 @@ const GITLAB_TOKEN = process.env.GITLAB_TOKEN;
 const POLLING_INTERVAL = 10000;
 
 async function startPoller() {
-  console.log("🔄 Starting Status Poller...");
+  console.log("[INFO] Starting Status Poller...");
   setInterval(pollRunningScans, POLLING_INTERVAL);
 }
+
+// [NEW] Helper to download artifacts
+async function fetchReportArtifacts(pipelineId: string) {
+    try {
+      console.log(`[Artifacts] Fetching reports for Pipeline ${pipelineId}...`);
+  
+      // 1. List Jobs in Pipeline to find "gitleaks_scan", "semgrep_scan", "trivy_scan"
+      const jobsRes = await axios.get(
+        `${GITLAB_API_URL}/projects/${GITLAB_PROJECT_ID}/pipelines/${pipelineId}/jobs`,
+        { headers: { "PRIVATE-TOKEN": GITLAB_TOKEN } }
+      );
+  
+      const jobs = jobsRes.data;
+      const reportMap: Record<string, any> = {};
+  
+      // Define jobs and their artifact paths
+      const targetJobs = [
+        { name: "gitleaks_scan", artifact: "gitleaks-report.json", key: "gitleaks" },
+        { name: "semgrep_scan", artifact: "semgrep-report.json", key: "semgrep" },
+        { name: "trivy_scan", artifact: "trivy-report.json", key: "trivy" },
+      ];
+  
+      for (const target of targetJobs) {
+        // Find the successful job
+        const job = jobs.find((j: any) => j.name === target.name && j.status === "success");
+        if (!job) continue;
+  
+        try {
+          // 2. Download Artifact File
+          const fileRes = await axios.get(
+            `${GITLAB_API_URL}/projects/${GITLAB_PROJECT_ID}/jobs/${job.id}/artifacts/${target.artifact}`,
+            { 
+                headers: { "PRIVATE-TOKEN": GITLAB_TOKEN },
+                responseType: "json" // Expect JSON response
+            }
+          );
+          
+          console.log(`[Artifacts] Downloaded ${target.artifact} from Job ${job.id}`);
+          reportMap[target.key] = fileRes.data;
+        } catch (err) {
+           console.warn(`[Artifacts] Failed to download ${target.artifact}:`, axios.isAxiosError(err) ? err.message : err);
+        }
+      }
+  
+      // 3. Update Database with explicit JSON object
+      if (Object.keys(reportMap).length > 0) {
+         // Find scan by pipelineId
+         const scan = await prisma.scanHistory.findUnique({ where: { pipelineId } });
+         if (scan) {
+             await prisma.scanHistory.update({
+                 where: { id: scan.id },
+                 data: { 
+                     reportJson: reportMap
+                 }
+             });
+             console.log(`[Artifacts] Saved reports to DB for Scan ${scan.id}`);
+         }
+      }
+  
+    } catch (error) {
+       console.error(`[Artifacts] Error processing pipeline ${pipelineId}:`, error);
+    }
+  }
 
 async function pollRunningScans() {
   try {
@@ -247,7 +345,7 @@ async function pollRunningScans() {
             const url = `${GITLAB_API_URL}/projects/${GITLAB_PROJECT_ID}/pipelines/${scan.pipelineId}`;
             const res = await axios.get(url, {
                 headers: { "PRIVATE-TOKEN": GITLAB_TOKEN },
-                timeout: 5000, // ✅ 5s Timeout for polling
+                timeout: 5000, // [INFO] 5s Timeout for polling
             });
             
             const glStatus = res.data.status; 
@@ -261,7 +359,10 @@ async function pollRunningScans() {
             if (newStatus && newStatus !== "RUNNING") {
                  console.log(`[Poller] Scan ${scan.id} (Pipeline ${scan.pipelineId}) changed to ${newStatus}`);
                  
-                 // TODO: Fetch report artifacts here if possible
+                 // [NEW] Fetch Artifacts on Success
+                 if (newStatus === "SUCCESS") {
+                    await fetchReportArtifacts(scan.pipelineId);
+                 }
                  
                  await prisma.scanHistory.update({
                      where: { id: scan.id },
@@ -271,12 +372,38 @@ async function pollRunningScans() {
                      }
                  });
             }
-        } catch (error: any) {
-            console.error(`[Poller] Failed to check pipeline ${scan.pipelineId}:`, error.message);
+        } catch (error: unknown) {
+            // [FIX]: Handle 404 (Deleted) and 401 (Unauthorized/Token Invalid)
+            if (axios.isAxiosError(error) && error.response) {
+                const status = error.response.status;
+                if (status === 404) {
+                     const reason = "Pipeline deleted in GitLab";
+                     console.log(`[Poller] Pipeline ${scan.pipelineId} not found (404). Marking as CANCELLED.`);
+                     
+                     await prisma.scanHistory.update({
+                         where: { id: scan.id },
+                         data: { 
+                             status: "CANCELLED",
+                             errorMessage: reason,
+                             completedAt: new Date()
+                         }
+                     });
+                } else if (status === 401 || status === 403) {
+                     // [WARN] Warning only: Don't cancel scan, just log.
+                     // Because a token issue shouldn't kill a running pipeline.
+                     console.warn(`[Poller] checking pipeline ${scan.pipelineId} failed (Status ${status}). Check GITLAB_TOKEN permissions.`);
+                } else {
+                    console.error(`[Poller] Failed to check pipeline ${scan.pipelineId}:`, error.message);
+                }
+            } else {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                console.error(`[Poller] Failed to check pipeline ${scan.pipelineId}:`, errorMessage);
+            }
         }
     }
-  } catch (error) {
-      console.error("[Poller] Error:", error);
+  } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("[Poller] Error:", errorMessage);
   }
 }
 
