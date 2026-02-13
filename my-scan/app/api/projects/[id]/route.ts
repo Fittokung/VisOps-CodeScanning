@@ -89,14 +89,13 @@ export async function DELETE(
       );
     }
 
-    // Soft delete (set isActive to false)
-    await prisma.projectGroup.update({
+    // Hard delete (previously Soft delete)
+    await prisma.projectGroup.delete({
       where: { id: projectId },
-      data: { isActive: false },
     });
 
     console.log(
-      `[Project Deleted] User ${userId} deleted project ${projectId}`
+      `[Project Deleted] User ${userId} hard deleted project ${projectId}`
     );
 
     return NextResponse.json({

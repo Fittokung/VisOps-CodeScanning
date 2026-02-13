@@ -19,10 +19,11 @@ export default function ScanOnlyPage() {
 
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
-            <div className="p-2 bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800 rounded-lg text-purple-600 dark:text-purple-400">
+            {/* <div className="p-2 bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800 rounded-lg text-purple-600 dark:text-purple-400">
               <Shield size={20} />
-            </div>
-            Security Audit (Scan Only)
+            </div> */}
+            Security Scan Only
+
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-2 ml-11 max-w-2xl">
             Perform a deep security analysis on your source code without

@@ -187,7 +187,7 @@ export default function AdminHistoryPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-              <ShieldAlert className="text-purple-600 dark:text-purple-400" /> All Scan History
+              All Scan History
             </h1>
             <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
               Monitoring security scans from all users across the system.

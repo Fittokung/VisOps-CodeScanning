@@ -10,26 +10,28 @@ async function main() {
   const password = crypto.randomBytes(12).toString("hex"); // 24 chars random string
   const hashedPassword = await bcrypt.hash(password, 12);
 
-  console.log(`
-  ---------------------------------------------------
-  🔐 Creating Default Admin...
-  ---------------------------------------------------
-  Email:    ${email}
-  Password: ${password}
-  ---------------------------------------------------
-  ⚠️  SAVE THIS PASSWORD SECURELY! IT WILL NOT BE SHOWN AGAIN.
-  ---------------------------------------------------
-  `);
-
   try {
-      const user = await prisma.user.upsert({
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      await prisma.user.update({
         where: { email },
-        update: {
+        data: {
           role: "ADMIN",
-          password: hashedPassword,
-          status: "ACTIVE", // Ensure admin is active
         },
-        create: {
+      });
+      console.log(`
+      ---------------------------------------------------
+      ✅ User found: ${email}
+      👑 Promoted to ADMIN successfully.
+      🔑 Password: [UNCHANGED]
+      ---------------------------------------------------
+      `);
+    } else {
+      await prisma.user.create({
+        data: {
           email,
           name: "Super Admin",
           role: "ADMIN",
@@ -38,7 +40,15 @@ async function main() {
           isSetupComplete: true,
         },
       });
-      console.log(`✅ Admin user '${user.email}' created/updated successfully.`);
+      console.log(`
+      ---------------------------------------------------
+      ✅ Admin user created: ${email}
+      🔑 Password: ${password}
+      ---------------------------------------------------
+      ⚠️  SAVE THIS PASSWORD SECURELY!
+      ---------------------------------------------------
+      `);
+    }
   } catch (err) {
       console.error("❌ Failed to create admin:", err);
       process.exit(1);

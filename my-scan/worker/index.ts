@@ -257,6 +257,69 @@ async function startPoller() {
   setInterval(pollRunningScans, POLLING_INTERVAL);
 }
 
+// [NEW] Helper to download artifacts
+async function fetchReportArtifacts(pipelineId: string) {
+    try {
+      console.log(`[Artifacts] Fetching reports for Pipeline ${pipelineId}...`);
+  
+      // 1. List Jobs in Pipeline to find "gitleaks_scan", "semgrep_scan", "trivy_scan"
+      const jobsRes = await axios.get(
+        `${GITLAB_API_URL}/projects/${GITLAB_PROJECT_ID}/pipelines/${pipelineId}/jobs`,
+        { headers: { "PRIVATE-TOKEN": GITLAB_TOKEN } }
+      );
+  
+      const jobs = jobsRes.data;
+      const reportMap: Record<string, any> = {};
+  
+      // Define jobs and their artifact paths
+      const targetJobs = [
+        { name: "gitleaks_scan", artifact: "gitleaks-report.json", key: "gitleaks" },
+        { name: "semgrep_scan", artifact: "semgrep-report.json", key: "semgrep" },
+        { name: "trivy_scan", artifact: "trivy-report.json", key: "trivy" },
+      ];
+  
+      for (const target of targetJobs) {
+        // Find the successful job
+        const job = jobs.find((j: any) => j.name === target.name && j.status === "success");
+        if (!job) continue;
+  
+        try {
+          // 2. Download Artifact File
+          const fileRes = await axios.get(
+            `${GITLAB_API_URL}/projects/${GITLAB_PROJECT_ID}/jobs/${job.id}/artifacts/${target.artifact}`,
+            { 
+                headers: { "PRIVATE-TOKEN": GITLAB_TOKEN },
+                responseType: "json" // Expect JSON response
+            }
+          );
+          
+          console.log(`[Artifacts] Downloaded ${target.artifact} from Job ${job.id}`);
+          reportMap[target.key] = fileRes.data;
+        } catch (err) {
+           console.warn(`[Artifacts] Failed to download ${target.artifact}:`, axios.isAxiosError(err) ? err.message : err);
+        }
+      }
+  
+      // 3. Update Database with explicit JSON object
+      if (Object.keys(reportMap).length > 0) {
+         // Find scan by pipelineId
+         const scan = await prisma.scanHistory.findUnique({ where: { pipelineId } });
+         if (scan) {
+             await prisma.scanHistory.update({
+                 where: { id: scan.id },
+                 data: { 
+                     reportJson: reportMap
+                 }
+             });
+             console.log(`[Artifacts] Saved reports to DB for Scan ${scan.id}`);
+         }
+      }
+  
+    } catch (error) {
+       console.error(`[Artifacts] Error processing pipeline ${pipelineId}:`, error);
+    }
+  }
+
 async function pollRunningScans() {
   try {
     const runningScans = await prisma.scanHistory.findMany({
@@ -296,7 +359,10 @@ async function pollRunningScans() {
             if (newStatus && newStatus !== "RUNNING") {
                  console.log(`[Poller] Scan ${scan.id} (Pipeline ${scan.pipelineId}) changed to ${newStatus}`);
                  
-                 // TODO: Fetch report artifacts here if possible
+                 // [NEW] Fetch Artifacts on Success
+                 if (newStatus === "SUCCESS") {
+                    await fetchReportArtifacts(scan.pipelineId);
+                 }
                  
                  await prisma.scanHistory.update({
                      where: { id: scan.id },
