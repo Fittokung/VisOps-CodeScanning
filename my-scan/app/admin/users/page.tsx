@@ -173,47 +173,83 @@ export default function AdminUsersPage() {
                     <td className="px-6 py-4 text-right">
                        <div className="flex items-center justify-end gap-2">
                           {loadingAction === user.id ? (
-                            <span className="text-xs text-gray-500 animate-pulse">Processing...</span>
+                            <span className="text-xs text-gray-500 animate-pulse flex items-center gap-1">
+                              <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Processing...
+                            </span>
                           ) : (
-                            <>
-                                {user.role !== "ADMIN" && user.status !== "REJECTED" && (
-                                    <button 
-                                        onClick={() => handleAction(user.id, "PROMOTE")}
-                                        className="text-xs px-2 py-1 rounded border border-indigo-200 dark:border-indigo-900 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors"
-                                        title="Promote to Admin"
-                                    >
-                                        Fromote
-                                    </button>
-                                )}
-                                {user.role === "ADMIN" && user.id !== session?.user.id && (
-                                    <button 
-                                        onClick={() => handleAction(user.id, "DEMOTE")}
-                                        className="text-xs px-2 py-1 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                                        title="Demote to User"
-                                    >
-                                        Demote
-                                    </button>
-                                )}
-                                {user.status === "REJECTED" ? (
-                                    <button 
-                                        onClick={() => handleAction(user.id, "APPROVE")}
-                                        className="text-xs px-2 py-1 rounded border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-500/20 transition-colors"
-                                        title="Re-activate User"
-                                    >
-                                        Approve
-                                    </button>
-                                ) : (
-                                    user.id !== session?.user.id && (
-                                        <button 
-                                            onClick={() => handleAction(user.id, "REJECT")}
-                                            className="text-xs px-2 py-1 rounded border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors"
-                                            title="Ban User"
-                                        >
-                                            Ban
-                                        </button>
-                                    )
-                                )}
-                            </>
+                            <div className="flex items-center gap-1.5">
+                              {/* PENDING Status: Can toggle between Approve/Reject */}
+                              {user.status === "PENDING" && (
+                                <>
+                                  <button 
+                                    onClick={() => handleAction(user.id, "APPROVE")}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-green-200 dark:border-green-900/50 bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-500/20 transition-all text-xs font-medium shadow-sm hover:shadow"
+                                    title="Approve User"
+                                  >
+                                    <CheckCircle className="h-3.5 w-3.5" />
+                                    Approve
+                                  </button>
+                                  <button 
+                                    onClick={() => handleAction(user.id, "REJECT")}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 transition-all text-xs font-medium shadow-sm hover:shadow"
+                                    title="Reject User"
+                                  >
+                                    <Ban className="h-3.5 w-3.5" />
+                                    Reject
+                                  </button>
+                                </>
+                              )}
+                              
+                              {/* ACTIVE Status: Can set back to PENDING or REJECTED */}
+                              {user.status === "ACTIVE" && user.id !== session?.user.id && user.role !== "ADMIN" && (
+                                <button 
+                                  onClick={() => handleAction(user.id, "REJECT")}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-orange-200 dark:border-orange-900/50 bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/20 transition-all text-xs font-medium shadow-sm hover:shadow"
+                                  title="Set to Pending (Block temporarily)"
+                                >
+                                  <ShieldAlert className="h-3.5 w-3.5" />
+                                  Reject
+                                </button>
+                              )}
+                              
+                              {/* REJECTED Status: Can approve back to PENDING */}
+                              {user.status === "REJECTED" && (
+                                <button 
+                                  onClick={() => handleAction(user.id, "APPROVE")}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-green-200 dark:border-green-900/50 bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-500/20 transition-all text-xs font-medium shadow-sm hover:shadow"
+                                  title="Set back to Pending"
+                                >
+                                  <CheckCircle className="h-3.5 w-3.5" />
+                                  Approve
+                                </button>
+                              )}
+                              
+                              {/* Role Actions: Only for non-admin users */}
+                              {user.role !== "ADMIN" && user.status === "ACTIVE" && (
+                                <button 
+                                  onClick={() => handleAction(user.id, "PROMOTE")}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-all text-xs font-medium shadow-sm hover:shadow"
+                                  title="Promote to Admin"
+                                >
+                                  <Shield className="h-3.5 w-3.5" />
+                                  Promote
+                                </button>
+                              )}
+                              
+                              {/* Admin cannot change other admin's role */}
+                              {user.role === "ADMIN" && user.id !== session?.user.id && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-500 text-xs font-medium cursor-not-allowed"
+                                  title="Cannot change admin role"
+                                >
+                                  <Shield className="h-3.5 w-3.5" />
+                                  Admin
+                                </span>
+                              )}
+                            </div>
                           )}
                        </div>
                     </td>
