@@ -115,7 +115,10 @@ export async function POST(req: Request) {
           { error: "Service not found" },
           { status: 404 },
         );
-      if (service.group.userId !== userId)
+      
+      // Allow admin to re-scan any service
+      const userRole = (session.user as any).role;
+      if (service.group.userId !== userId && userRole !== "admin")
         return NextResponse.json({ error: "Access denied" }, { status: 403 });
 
       const scanQuota = await checkScanQuota(serviceId);

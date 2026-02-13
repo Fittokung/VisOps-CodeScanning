@@ -34,7 +34,7 @@ async function main() {
         data: {
           email,
           name: "Super Admin",
-          role: "ADMIN",
+          role: "admin",
           password: hashedPassword,
           status: "ACTIVE",
           isSetupComplete: true,

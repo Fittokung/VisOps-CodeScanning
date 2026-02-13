@@ -59,7 +59,7 @@ export const authOptions: NextAuthOptions = {
         });
 
         // Only allow admins to login via credentials
-        if (!user || !user.password || user.role !== "ADMIN") {
+        if (!user || !user.password || user.role !== "admin") {
           throw new Error("Invalid credentials or not an admin");
         }
 

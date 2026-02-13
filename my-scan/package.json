@@ -17,7 +17,6 @@
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
     "@prisma/client": "^6.19.2",
-    "@types/bcryptjs": "^2.4.6",
     "amqplib": "^0.10.5",
     "axios": "^1.6.0",
     "bcryptjs": "^3.0.3",
@@ -37,6 +36,7 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/amqplib": "^0.10.8",
+    "@types/bcryptjs": "^2.4.6",
     "@types/jest": "^30.0.0",
     "@types/node": "^20.19.27",
     "@types/react": "^18",

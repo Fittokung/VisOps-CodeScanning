@@ -80,7 +80,7 @@ export default function AdminSettingsPage() {
     }
   };
 
-  if (session?.user.role !== "ADMIN") {
+  if (session?.user.role !== "admin") {
       return (
         <div className="flex h-[50vh] items-center justify-center text-red-500">
             Unauthorized Access

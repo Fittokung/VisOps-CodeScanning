@@ -155,3 +155,57 @@ export async function DELETE(
     return NextResponse.json({ error: "Failed to delete" }, { status: 500 });
   }
 }
+
+// 3. PATCH: Update scan status (for admin force cancel)
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    
+    // Only admin can force cancel
+    if (!session?.user || (session.user as any).role !== "admin") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    const resolved = await params;
+    const targetId = resolved.id;
+    const body = await req.json();
+    const { status } = body;
+
+    // Validate status
+    if (!status || !["CANCELLED"].includes(status)) {
+      return NextResponse.json(
+        { error: "Invalid status. Only CANCELLED is allowed" },
+        { status: 400 }
+      );
+    }
+
+    // Update scan status
+    const updated = await prisma.scanHistory.updateMany({
+      where: {
+        OR: [
+          { id: targetId },
+          { pipelineId: targetId },
+        ],
+      },
+      data: {
+        status: status,
+        completedAt: new Date(),
+      },
+    });
+
+    if (updated.count === 0) {
+      return NextResponse.json({ error: "Scan not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Scan ${status.toLowerCase()} successfully`,
+    });
+  } catch (err: any) {
+    console.error("[PATCH] Error:", err.message);
+    return NextResponse.json({ error: "Failed to update scan" }, { status: 500 });
+  }
+}

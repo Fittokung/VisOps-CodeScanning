@@ -131,7 +131,7 @@ export default function AdminUsersPage() {
   const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
   const paginatedUsers = filteredUsers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  if (session?.user.role !== "ADMIN") {
+  if (session?.user.role !== "admin") {
       return <div className="p-8 text-center text-red-500">Unauthorized Access</div>;
   }
 
