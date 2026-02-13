@@ -27,5 +27,6 @@ declare module "next-auth/jwt" {
     role: string
     status: string
     isSetupComplete: boolean
+    image?: string | null
   }
 }

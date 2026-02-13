@@ -12,9 +12,21 @@ export async function GET(
     const { id: userId } = await params;
 
     // 1. Auth Check: Must be ADMIN
-    // 1. Auth Check: Must be ADMIN
     if (!session || session.user.role !== "ADMIN") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    // prevent admin view other admin details (BUT allow viewing self)
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+
+    if (targetUser?.role === "ADMIN" && userId !== (session.user as any).id) {
+      return NextResponse.json(
+        { error: "Access Denied: Cannot view other admin details" },
+        { status: 403 }
+      );
     }
 
     // 2. Fetch User with Relations
@@ -103,5 +115,50 @@ export async function GET(
   } catch (error) {
     console.error("[API_ADMIN_USER_DETAILS]", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
+}
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    const { id: userId } = await params;
+    const body = await request.json();
+
+    // 1. Auth Check: Must be ADMIN
+    if (!session || session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    // 2. Prevent banning other admins
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+
+    if (targetUser?.role === "ADMIN") {
+      return NextResponse.json(
+        { error: "Access Denied: Cannot modify other admin" },
+        { status: 403 }
+      );
+    }
+
+    // 3. Update User
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        status: body.status, // 'ACTIVE' | 'BANNED'
+        role: body.role, // Optional: if changing role
+      },
+    });
+
+    return NextResponse.json({ success: true, user: updatedUser });
+  } catch (error) {
+    console.error("[API_ADMIN_USER_UPDATE]", error);
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }

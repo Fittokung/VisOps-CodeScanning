@@ -32,7 +32,13 @@ interface User {
   };
 }
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error("Failed to fetch");
+  }
+  return res.json();
+};
 
 export default function AdminUsersPage() {
   const { data: session } = useSession();
@@ -50,8 +56,9 @@ export default function AdminUsersPage() {
   const isLoading = !users && !error;
   
   // Stats
-  const totalAdmins = Array.isArray(users) ? users.filter(u => u.role === "ADMIN").length : 0;
-  const totalStandard = Array.isArray(users) ? users.filter(u => u.role !== "ADMIN").length : 0;
+  const userList = Array.isArray(users) ? users : [];
+  const totalAdmins = userList.filter(u => u.role === "ADMIN").length || 0;
+  const totalStandard = userList.filter(u => u.role !== "ADMIN").length || 0;
 
   // Handlers
   const handleSort = (field: keyof User | "stats.projects") => {
@@ -88,7 +95,7 @@ export default function AdminUsersPage() {
   };
 
   // Filter & Sort Logic
-  const filteredUsers = (Array.isArray(users) ? users : []).filter(user => {
+  const filteredUsers = userList.filter(user => {
     // 1. Search
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = 
@@ -118,7 +125,7 @@ export default function AdminUsersPage() {
       
       const comparison = valA > valB ? 1 : -1;
       return sortDirection === "asc" ? comparison : -comparison;
-  }) || [];
+  });
 
   // Pagination Logic
   const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
@@ -137,7 +144,7 @@ export default function AdminUsersPage() {
             User Management
           </h1>
           <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-            Total {users?.length || 0} users · {totalAdmins} Admins · {totalStandard} Users
+            Total {userList.length} users · {totalAdmins} Admins · {totalStandard} Users
           </p>
         </div>
         
@@ -268,7 +275,7 @@ export default function AdminUsersPage() {
                                         </button>
                                     )}
 
-                                    {user.status === "REJECTED" ? (
+                                    {user.status === "REJECTED" || user.status === "PENDING" ? (
                                          <button 
                                             onClick={() => handleAction(user.id, "APPROVE")}
                                             className="text-xs px-2 py-1 rounded bg-green-50 text-green-700 border border-green-200 hover:bg-green-100"

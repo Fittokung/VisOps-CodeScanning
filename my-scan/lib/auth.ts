@@ -112,6 +112,13 @@ export const authOptions: NextAuthOptions = {
           token.isSetupComplete = dbUser.isSetupComplete;
           token.role = dbUser.role;
           token.status = dbUser.status;
+          
+          // Prevent large payloads (base64 images) from bloating the token and causing HTTP 431
+          if (dbUser.image && dbUser.image.length > 2048) {
+            token.image = null; 
+          } else {
+            token.image = dbUser.image;
+          }
         }
       }
       return token;
@@ -119,10 +126,11 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session.user) {
         // Add user info to session from token
-        session.user.id = token.id;
-        session.user.isSetupComplete = token.isSetupComplete;
-        session.user.role = token.role;
-        session.user.status = token.status;
+        session.user.id = token.id as string;
+        session.user.isSetupComplete = token.isSetupComplete as boolean;
+        session.user.role = token.role as string;
+        session.user.status = token.status as string;
+        session.user.image = token.image as string; // Pass image to session
       }
       return session;
     },

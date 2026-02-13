@@ -183,8 +183,15 @@ export default function DashboardPage() {
 
   // --- Auth Redirect ---
   useEffect(() => {
-    if (status === "unauthenticated") router.push("/login");
-  }, [status, router]);
+    if (status === "unauthenticated") {
+      router.push("/login");
+    } else if (status === "authenticated") {
+      // ✅ Redirect to /setup if not complete (and not admin)
+      if (session?.user?.role !== "ADMIN" && !session?.user?.isSetupComplete) {
+         router.push("/setup");
+      }
+    }
+  }, [status, router, session]);
 
   // --- Helpers ---
   const showToast = (message: string, type: "success" | "error" | "info") => {
