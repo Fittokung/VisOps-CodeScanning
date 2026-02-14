@@ -1,12 +1,13 @@
 "use client";
 import { useState } from "react";
-import { UploadCloud, Loader2, AlertTriangle, Check } from "lucide-react";
+import { UploadCloud, Loader2, AlertTriangle, CheckCircle2, Rocket } from "lucide-react";
 
 type Props = {
   scanId: string;
   status: string;
   vulnCount?: number;
   imagePushed?: boolean;
+  onSuccess?: () => void; // [NEW] Callback for refresh
 };
 
 export default function ConfirmBuildButton({
@@ -14,10 +15,11 @@ export default function ConfirmBuildButton({
   status,
   vulnCount = 0,
   imagePushed = false,
+  onSuccess,
 }: Props) {
   const [isDeploying, setIsDeploying] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  // Optimistic UI state locally if needed, but props should ideally drive this
+  // Optimistic UI state
   const [localPushed, setLocalPushed] = useState(false);
 
   const isCompleted = imagePushed || localPushed;
@@ -37,7 +39,9 @@ export default function ConfirmBuildButton({
 
       if (res.ok) {
         setLocalPushed(true);
-        alert("Pipeline Resumed! Pushing to Docker Hub...");
+        // alert("Pipeline Resumed! Pushing to Docker Hub..."); // Remove alert for smoother UX? Or keep it? User said "update real time".
+        // Let's keep alert but ensuring data refetch is key.
+        if (onSuccess) onSuccess(); 
       } else {
         setErrorMessage(data.error || "Failed to trigger release");
       }
@@ -49,17 +53,7 @@ export default function ConfirmBuildButton({
   };
 
   if (isCompleted) {
-    return (
-      <div className="bg-green-50 border border-green-200 text-green-700 p-4 rounded-lg flex items-center gap-2 mb-6 animate-in fade-in">
-        <Check className="w-5 h-5" />
-        <div>
-          <strong>Deployment Complete</strong>
-          <p className="text-sm opacity-90">
-            Image has been released successfully.
-          </p>
-        </div>
-      </div>
-    );
+    return null; // ✅ Hide completely when done. Status is shown in Header.
   }
 
   // ✅ ถ้า BLOCKED หรือ FAILED ไม่ต้องโชว์ปุ่ม
@@ -71,24 +65,32 @@ export default function ConfirmBuildButton({
     return null;
 
   return (
-    <div className="bg-white p-6 rounded-xl border border-blue-200 shadow-md mb-6 animate-in fade-in slide-in-from-top-2">
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+    <div className="bg-white p-6 rounded-xl border border-blue-100 shadow-sm mb-6 animate-in fade-in slide-in-from-top-2 relative overflow-hidden">
+      {/* Decorative gradient */}
+      <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+      
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 pl-2">
         <div>
-          <h3 className="text-lg font-bold text-slate-800 mb-1">
+          <h3 className="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2">
+            <Rocket className="w-5 h-5 text-blue-600" />
             Ready for Release
           </h3>
-          <p className="text-sm text-slate-600 mb-2">
-            Security scan passed. Please confirm to push the image to Docker
-            Hub.
+          <p className="text-sm text-slate-600 mb-3 max-w-2xl text-balance">
+            Security scan passed. The image is safe to be pushed to your container registry.
           </p>
+          
           {vulnCount > 0 && (
-            <div className="bg-amber-50 border border-amber-200 text-amber-800 p-2 rounded-md text-sm flex items-center gap-2 w-fit">
-              <AlertTriangle className="w-4 h-4" />
-              Warning: {vulnCount} critical findings detected.
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded-lg text-sm flex items-center gap-2 w-fit">
+              <AlertTriangle className="w-4 h-4 text-amber-600" />
+              <span>
+                <strong>Warning:</strong> {vulnCount} critical findings detected.
+              </span>
             </div>
           )}
+          
           {errorMessage && (
-            <div className="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded border border-red-100">
+            <div className="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded border border-red-100 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" />
               {errorMessage}
             </div>
           )}
@@ -97,23 +99,22 @@ export default function ConfirmBuildButton({
         <button
           onClick={handleRelease}
           disabled={isDeploying}
-          className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium text-white transition-all whitespace-nowrap
+          className={`group flex items-center gap-2 px-6 py-3 rounded-lg font-medium text-white transition-all whitespace-nowrap shadow-md hover:shadow-lg
               ${
                 isDeploying
                   ? "bg-slate-400 cursor-not-allowed"
-                  : "bg-blue-600 hover:bg-blue-700 shadow-lg hover:shadow-xl"
+                  : "bg-blue-600 hover:bg-blue-700 hover:-translate-y-0.5"
               }
             `}
         >
           {isDeploying ? (
             <>
-              {" "}
-              <Loader2 className="w-5 h-5 animate-spin" /> Processing...{" "}
+              <Loader2 className="w-5 h-5 animate-spin" /> Processing...
             </>
           ) : (
             <>
-              {" "}
-              <UploadCloud className="w-5 h-5" /> Confirm & Push{" "}
+              <UploadCloud className="w-5 h-5 group-hover:scale-110 transition-transform" /> 
+              Confirm & Push
             </>
           )}
         </button>

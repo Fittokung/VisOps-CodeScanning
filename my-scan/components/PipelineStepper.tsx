@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Circle, Clock, Loader2, XCircle } from "lucide-react";
+import { Check, Loader2, X, Circle, Clock, Rocket } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PipelineJob {
@@ -16,41 +16,93 @@ interface PipelineJob {
 interface PipelineStepperProps {
   jobs: PipelineJob[];
   status: string;
+  scanMode?: string;
+  imagePushed?: boolean;
 }
 
-export default function PipelineStepper({ jobs, status }: PipelineStepperProps) {
-  if (!jobs || jobs.length === 0) return null;
+export default function PipelineStepper({ jobs, status, scanMode, imagePushed }: PipelineStepperProps) {
 
-  // Group jobs by stage
-  // We want a specific order: build -> test -> security-scan -> deploy (opt)
-  // But strictly, we should follow the array order or stage order if provided.
-  // Ideally, GitLab returns jobs, but "stages" are a separate concept. 
-  // For simplicity, we'll map known stage names to a fixed order, or just unique them.
-  
-  // Custom sort order for standard VisScan stages
-  const stageOrder = ["build", "test", "security-scan", "deploy"];
-  
-  // Deduplicate stages and keep them in order of appearance if not in standard list
-  const uniqueStages: string[] = [];
+  // Determine stages to show
+  let uniqueStages: string[] = [];
   const jobsByStage: Record<string, PipelineJob[]> = {};
 
-  jobs.forEach(job => {
-    if (!uniqueStages.includes(job.stage)) {
-      uniqueStages.push(job.stage);
-    }
-    if (!jobsByStage[job.stage]) {
-      jobsByStage[job.stage] = [];
-    }
-    jobsByStage[job.stage].push(job);
-  });
+  // 1. If we have real jobs, use their stages
+  if (jobs && jobs.length > 0) {
+      jobs.forEach(job => {
+        if (!uniqueStages.includes(job.stage)) {
+          uniqueStages.push(job.stage);
+        }
+        if (!jobsByStage[job.stage]) {
+          jobsByStage[job.stage] = [];
+        }
+        jobsByStage[job.stage].push(job);
+      });
+  } else {
+      // 2. Fallback: Use default expected stages if no jobs yet
+      const expectedStages = scanMode === "SCAN_ONLY" 
+        ? ["security-scan"] 
+        : ["build", "test", "security-scan", "release"];
+      
+      uniqueStages = [...expectedStages];
+      expectedStages.forEach(stage => {
+          jobsByStage[stage] = [];
+      });
+  }
+  
+  // [NEW] Inject "Docker Push" stage manually if SCAN_AND_BUILD
+  // We use "release" as the internal stage name for consistency
+  if (scanMode === "SCAN_AND_BUILD") {
+      // If we are using real jobs, check if 'release' stage exists
+      // If not, and we have real jobs, maybe we shouldn't force it unless we really want to?
+      // Actually, for VisOps flow, we usually want to see the Release step at the end.
+      
+      if (!jobsByStage["release"] || jobsByStage["release"].length === 0) {
+           // Only add if we are in the fallback mode OR if we want to force it to appear
+           // If we have real jobs, and 'release' is missing, it might be because it's not in the GitLab pipeline yet or at all.
+           // But our "Confirm & Push" button logic often implies a manual release step.
+           
+           if (!uniqueStages.includes("release")) {
+               uniqueStages.push("release");
+           }
+           jobsByStage["release"] = [{
+              id: 999999,
+              name: "Push to Registry",
+              stage: "release",
+              status: imagePushed ? "success" : "manual_pending", // Custom status
+              started_at: null,
+              finished_at: null,
+              duration: null
+          }];
+      }
+  }
 
-  // Sort stages: standard ones first, then others
+  // Sort stages
+  // Sort stages
+  const stageOrder = [
+    "setup", 
+    "security_audit", 
+    "compile", 
+    "build_artifact", 
+    "container_scan", 
+    "release",
+    "cleanup"
+  ];
+
   uniqueStages.sort((a, b) => {
     const idxA = stageOrder.indexOf(a);
     const idxB = stageOrder.indexOf(b);
+    
+    // Both are known stages
     if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-    if (idxA !== -1) return -1;
+    
+    // One is known, one is unknown
+    if (idxA !== -1) return -1; // Known comes first? Actually we want unknowns to be handled gracefully.
+    // If we have unknown stages, where should they go?
+    // Let's put unknowns at the END, but BEFORE cleanup if possible.
+    // But simplistic approach: Known first.
     if (idxB !== -1) return 1;
+
+    // Both unknown: keep original order
     return 0;
   });
 
@@ -64,15 +116,9 @@ export default function PipelineStepper({ jobs, status }: PipelineStepperProps) 
     return 'pending';
   };
 
-  const getIcon = (status: string) => {
-    switch (status) {
-      case "success": return <CheckCircle2 className="w-5 h-5 text-emerald-500" />;
-      case "failed": return <XCircle className="w-5 h-5 text-red-500" />;
-      case "running": return <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />;
-      case "pending": return <Circle className="w-5 h-5 text-slate-300 dark:text-slate-600" />;
-      case "canceled": return <XCircle className="w-5 h-5 text-slate-400" />;
-      default: return <Circle className="w-5 h-5 text-slate-300 dark:text-slate-600" />;
-    }
+  const formatStageName = (name: string) => {
+    if (name === "release") return "PUSH TO REGISTRY"; // More descriptive
+    return name.replace(/_/g, " ").replace(/-/g, " ");
   };
 
    const formatDuration = (seconds: number | null) => {
@@ -83,71 +129,106 @@ export default function PipelineStepper({ jobs, status }: PipelineStepperProps) 
   };
 
   return (
-    <div className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm mb-6">
-      <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-6">
-        Pipeline Progress
-      </h3>
-      
-      <div className="relative flex items-center justify-between w-full">
-        {/* Connector Line */}
-        <div className="absolute top-1/2 left-0 w-full h-0.5 bg-slate-100 dark:bg-slate-800 -z-0 -translate-y-1/2" />
-
+    <div className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
+      <div className="relative flex items-start justify-between w-full px-2">
         {uniqueStages.map((stage, index) => {
           const stageJobs = jobsByStage[stage];
-          const stageStatus = getStageStatus(stageJobs);
+          let stageStatus = getStageStatus(stageJobs);
+          
+          const isRelease = stage === "release"; 
+          if (isRelease && imagePushed) {
+              stageStatus = 'success'; 
+          }
+
           const isCompleted = stageStatus === 'success';
           const isRunning = stageStatus === 'running';
           const isFailed = stageStatus === 'failed';
-          
-          // Calculate total duration for stage (max of concurrent jobs usually, but sum is easier approx)
-          // better: max(finished_at) - min(started_at) if all done?
-          // Fallback: sum of durations
+          const isPending = stageStatus === 'pending' || stageStatus === 'canceled' || stageStatus === 'created' || stageStatus === 'manual';
+
           const totalDuration = stageJobs.reduce((acc, j) => acc + (j.duration || 0), 0);
+          
+          // Determine connector color
+          const isLast = index === uniqueStages.length - 1;
+          const connectorColor = isCompleted 
+              ? "bg-emerald-500" 
+              : "bg-slate-200 dark:bg-slate-700";
 
           return (
-            <div key={stage} className="relative z-10 flex flex-col items-center group">
+            <div key={stage} className="relative flex flex-col items-center flex-1 group min-w-0">
+               {/* Connector Line (to the right) */}
+               {!isLast && (
+                 <div 
+                    className={cn(
+                      "absolute top-5 left-1/2 w-full h-0.5 -translate-y-1/2 transition-colors duration-500 z-0",
+                      connectorColor
+                    )} 
+                 />
+               )}
+
+              {/* Status Point */}
               <div className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center border-4 transition-all duration-300",
-                isCompleted ? "bg-emerald-50 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-900/50" :
-                isRunning ? "bg-blue-50 border-blue-100 dark:bg-blue-900/20 dark:border-blue-900/50 scale-110" :
-                isFailed ? "bg-red-50 border-red-100 dark:bg-red-900/20 dark:border-red-900/50" :
-                "bg-slate-50 border-slate-100 dark:bg-slate-800 dark:border-slate-700"
+                "relative z-10 w-10 h-10 rounded-full flex items-center justify-center border-4 transition-all duration-300 bg-white dark:bg-slate-900",
+                isCompleted ? (isRelease ? "border-emerald-500 text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20" : "border-emerald-500 text-emerald-500") :
+                isRunning ? "border-blue-500 text-blue-500 scale-110 shadow-lg shadow-blue-500/20" :
+                isFailed ? "border-red-500 text-red-500" :
+                "border-slate-200 dark:border-slate-700 text-slate-300 dark:text-slate-600"
               )}>
-                {getIcon(stageStatus)}
+                {isRelease ? (
+                    <Rocket size={18} className={cn(isCompleted && "text-emerald-600 dark:text-emerald-400")} />
+                ) : (
+                    <>
+                        {isCompleted && <Check size={18} strokeWidth={3} />}
+                        {isRunning && <Loader2 size={18} className="animate-spin" />}
+                        {isFailed && <X size={18} strokeWidth={3} />}
+                        {isPending && <Circle size={10} fill="currentColor" className="text-slate-200 dark:text-slate-700" />}
+                    </>
+                )}
               </div>
               
-              <div className="absolute top-12 flex flex-col items-center w-32">
+              {/* Label & Details */}
+              <div className="flex flex-col items-center mt-3 gap-1 w-full px-1">
                 <span className={cn(
-                  "text-xs font-bold uppercase tracking-tight text-center",
-                   isCompleted ? "text-emerald-700 dark:text-emerald-400" :
-                   isRunning ? "text-blue-700 dark:text-blue-400" :
-                   isFailed ? "text-red-700 dark:text-red-400" :
-                   "text-slate-500 dark:text-slate-400"
-                )}>
-                  {stage.replace(/_/g, " ")}
+                  "text-[10px] md:text-xs font-bold uppercase tracking-wider text-center transition-colors truncate w-full",
+                   isCompleted ? "text-slate-900 dark:text-white" :
+                   isRunning ? "text-blue-600 dark:text-blue-400" :
+                   isFailed ? "text-red-600 dark:text-red-400" :
+                   "text-slate-400 dark:text-slate-500"
+                )} title={formatStageName(stage)}>
+                  {formatStageName(stage)}
                 </span>
                 
                 {/* Duration Badge */}
                 {totalDuration > 0 && (
-                   <span className="text-[10px] font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded mt-1">
+                   <div className="flex items-center gap-1 text-[10px] text-slate-400 font-mono">
+                      <Clock size={10} />
                       {formatDuration(totalDuration)}
-                   </span>
+                   </div>
                 )}
-                
-                {/* Job Breakdown Tooltip (Simple List for now) */}
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute top-10 bg-slate-900 text-white text-xs rounded p-2 w-max max-w-[200px] pointer-events-none z-20 shadow-xl">
+              </div>
+              
+              {/* Hover Tooltip */}
+              <div className="opacity-0 group-hover:opacity-100 transition-all duration-200 absolute top-14 translate-y-2 group-hover:translate-y-0 bg-slate-900 text-white text-xs rounded-lg py-2 px-3 min-w-[150px] pointer-events-none z-20 shadow-xl border border-slate-700">
+                  <div className="font-semibold border-b border-slate-700 pb-1 mb-1 text-slate-300">
+                    {formatStageName(stage)} Jobs
+                  </div>
+                  <div className="flex flex-col gap-1.5">
                     {stageJobs.map(j => (
-                        <div key={j.id} className="flex justify-between gap-4 py-0.5">
-                            <span>{j.name}</span>
+                        <div key={j.id} className="flex justify-between items-center gap-3">
+                            <span className="text-slate-300">{j.name}</span>
                             <span className={cn(
-                                "uppercase text-[9px] font-bold",
-                                j.status === 'success' ? "text-emerald-400" :
-                                j.status === 'failed' ? "text-red-400" :
-                                "text-slate-400"
-                            )}>{j.status}</span>
+                                "uppercase text-[9px] font-bold px-1.5 py-0.5 rounded",
+                                j.status === 'success' ? "bg-emerald-500/20 text-emerald-400" :
+                                j.status === 'failed' ? "bg-red-500/20 text-red-400" :
+                                j.status === 'running' ? "bg-blue-500/20 text-blue-400" :
+                                "bg-slate-700 text-slate-400"
+                            )}>
+                              {j.status}
+                            </span>
                         </div>
                     ))}
-                </div>
+                  </div>
+                  {/* Arrow */}
+                  <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 border-t border-l border-slate-700 rotate-45"></div>
               </div>
             </div>
           );

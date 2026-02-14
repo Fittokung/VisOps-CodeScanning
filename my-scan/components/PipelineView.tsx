@@ -20,14 +20,16 @@ import { FindingsTable } from "./pipeline/FindingsTable";
 export default function PipelineView({
   scanId,
   scanMode,
+  initialData, // [NEW]
 }: {
   scanId: string;
   scanMode?: string;
+  initialData?: any; // [NEW]
 }) {
   const router = useRouter();
-  const [run, setRun] = useState<Run | null>(null);
+  const [run, setRun] = useState<Run | null>(initialData || null); // Initialize with server data
   const [comparison, setComparison] = useState<ComparisonData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!initialData); // Don't load if we have data
   const [error, setError] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [showCompareButton, setShowCompareButton] = useState(false);
@@ -279,6 +281,16 @@ export default function PipelineView({
 
   return (
     <div className="max-w-6xl mx-auto p-4 md:p-6 space-y-6 font-sans animate-in fade-in duration-500">
+      {/* [moved] Pipeline Stepper (Real-time) */}
+      {run && (
+        <PipelineStepper 
+             jobs={(run as any).pipelineJobs || []} 
+             status={run.status} 
+             scanMode={run.scanMode || scanMode || "SCAN_AND_BUILD"} 
+             imagePushed={(run as any).imagePushed} 
+        />
+      )}
+      
       {/* Action Bar: เหลือแค่ปุ่ม Cancel (ปุ่ม Sync หายไปแล้ว เพราะระบบทำให้เอง) */}
       <div className="flex justify-end gap-2">
         {isCancellable && (
@@ -320,11 +332,8 @@ export default function PipelineView({
         </div>
       )}
 
-      {/* [NEW] Pipeline Stepper */}
-      {run && (run as any).pipelineJobs && (
-        <PipelineStepper jobs={(run as any).pipelineJobs} status={run.status} />
-      )}
-
+      {/* [Removed PipelineStepper - now in ScanPage] */}
+      
       {/* ปุ่ม Release จะโผล่มาเองอัตโนมัติเมื่อ isSuccess เป็นจริง */}
       {!isScanOnly && (isSuccess || run.status?.toUpperCase() === "MANUAL") && !isBlocked && (
         <ConfirmBuildButton 
@@ -332,6 +341,7 @@ export default function PipelineView({
             status={run.status} 
             vulnCount={run.counts.critical} 
             imagePushed={(run as any).imagePushed}
+            onSuccess={fetchStatus} // [NEW] Trigger refresh immediately
         />
       )}
 
@@ -341,16 +351,7 @@ export default function PipelineView({
         />
       )}
 
-        <StatusHeader
-        status={run.status}
-        repoUrl={run.repoUrl}
-        step={run.step}
-        progress={run.progress}
-        isBlocked={isBlocked}
-        scanMode={run.scanMode}
-        rawReports={run.rawReports}
-        onDownload={handleDownload}
-      />
+      {/* [Removed StatusHeader - redundnat] */}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="space-y-6 lg:col-span-1">
@@ -358,6 +359,7 @@ export default function PipelineView({
           <SummaryCards counts={run.counts} />
           <LogsPanel
             logs={run.logs}
+            scanLogs={run.scanLogs} // [NEW] Pass fallback logs
             isSuccess={isSuccess}
             totalFindings={totalFindings}
             pipelineId={run.pipelineId}

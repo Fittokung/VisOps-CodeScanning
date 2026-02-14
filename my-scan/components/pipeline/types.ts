@@ -25,6 +25,7 @@ export type Run = {
   counts: { critical: number; high: number; medium: number; low: number };
   findings: Vulnerability[];
   logs?: string[];
+  scanLogs?: Array<{ status: string; timestamp: string; message: string }>; // [NEW] Fallback logs
   pipelineUrl?: string;
   scanDuration?: string;
   rawReports?: {

@@ -62,6 +62,7 @@ export async function GET() {
             vulnLow: true,
             scanMode: true,
             startedAt: true,
+            imagePushed: true, // [NEW] Fetch imagePushed status
           },
         },
       },
@@ -90,6 +91,7 @@ export async function GET() {
         vulnMedium: scan.vulnMedium || 0,
         vulnLow: scan.vulnLow || 0,
         completedAt: scan.startedAt?.toISOString() || new Date().toISOString(),
+        imagePushed: scan.imagePushed, // [NEW] Include in response
       })),
     }));
 

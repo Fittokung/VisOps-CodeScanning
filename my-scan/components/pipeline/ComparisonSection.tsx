@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { ShieldAlert } from "lucide-react";
+import { ShieldAlert, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { ComparisonData } from "./types";
 
 interface ComparisonSectionProps {
@@ -43,11 +43,13 @@ export const ComparisonSection = ({ comparison }: ComparisonSectionProps) => {
                   : "text-gray-600"
               }`}
             >
-              {comp.trend === "improved"
-                ? "✅"
-                : comp.trend === "degraded"
-                ? "⚠️"
-                : "➡️"}
+              {comp.trend === "improved" ? (
+                <TrendingUp className="w-8 h-8 mx-auto" />
+              ) : comp.trend === "degraded" ? (
+                <TrendingDown className="w-8 h-8 mx-auto" />
+              ) : (
+                <Minus className="w-8 h-8 mx-auto" />
+              )}
             </div>
             <div className="text-xs font-semibold uppercase tracking-wide mt-1">
               {comp.trend}

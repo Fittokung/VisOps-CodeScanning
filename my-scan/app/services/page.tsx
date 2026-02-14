@@ -16,8 +16,10 @@ import {
   Search as SearchIcon,
   Tag,
   History,
+  Rocket, // [NEW]
 } from "lucide-react";
 import { ScanModeBadge, StatusBadge } from "@/components/pipeline/StatusBadges";
+import { TiltCard } from "@/components/ui/TiltCard"; // [NEW]
 
 interface Service {
   id: string;
@@ -38,6 +40,7 @@ interface Service {
     vulnMedium: number;
     vulnLow: number;
     completedAt: string;
+    imagePushed?: boolean; // [NEW]
   }>;
 }
 
@@ -273,7 +276,7 @@ export default function ServicesPage() {
             }
 
             return (
-              <div
+              <TiltCard
                 key={service.id}
                 className="group relative bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-0 hover:shadow-xl dark:hover:shadow-slate-900/50 hover:border-slate-300 dark:hover:border-slate-700 transition-all duration-300 flex flex-col h-full overflow-hidden"
               >
@@ -288,13 +291,19 @@ export default function ServicesPage() {
                         <h3 className="font-bold text-slate-900 dark:text-white truncate text-base" title={service.serviceName}>
                           {service.serviceName}
                         </h3>
+                         {/* [NEW] Deployed Badge */}
+                         {latestScan?.imagePushed && (
+                           <span className="flex items-center gap-1 text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-bold border border-emerald-200">
+                              <Rocket size={10} />
+                              DEPLOYED
+                           </span>
+                         )}
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 max-w-full truncate">
                            <Tag size={10} className="mr-1" />
                            {service.imageName}
                          </span>
-
                          {latestScan && (
                            <>
                              <StatusBadge status={latestScan.status} />
@@ -389,7 +398,7 @@ export default function ServicesPage() {
                      </div>
                   </div>
                 </div>
-              </div>
+              </TiltCard>
             );
           })}
         </div>

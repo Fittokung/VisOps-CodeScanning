@@ -94,9 +94,10 @@ export async function GET(
         dockerfileContent = project.dockerfileContent;
         dockerfileSource = `Custom (Override by ${project.dockerfileOverrideBy || "User"})`;
     } else {
-         // ... (existing helper logic)
-         // We'll leave the helper logic as is, relying on the primary 'project' service found
-         // to generate the preview.
+         dockerfileContent = project.dockerfileContent || "# Auto-generated";
+         dockerfileSource = project.detectedLanguage 
+            ? `Auto-detected (${project.detectedLanguage})` 
+            : "System Default";
     }
     
     // ... (existing template detection logic)

@@ -6,14 +6,13 @@ import AddServiceDialog from "@/components/AddServiceDialog";
 import {
   Layers,
   ArrowRight,
-  CheckCircle,
+  CheckCircle2,
   Loader2,
   XCircle,
   AlertTriangle,
   GitBranch,
+  Plus,
 } from "lucide-react";
-
-import { useScanStatus } from "@/lib/statusPoller";
 
 type Props = {
   repoUrl: string;
@@ -25,33 +24,11 @@ type Props = {
 
 export default function MonorepoAction({
   repoUrl,
-  status: initialStatus,
+  status,
   groupId,
   projectId,
   scanId,
 }: Props) {
-  const router = useRouter();
-  
-  // Real-time status checking
-  const { data: pollData } = useScanStatus(3000); // Check every 3 seconds
-
-  // Determine current status
-  let status = initialStatus;
-  
-  if (scanId && pollData) {
-    // Check active scans
-    const activeScan = pollData.active?.find(s => s.scanId === scanId);
-    if (activeScan) {
-      status = activeScan.status;
-    } else {
-      // Check recently completed
-      const completedScan = pollData.recentCompleted?.find(s => s.scanId === scanId);
-      if (completedScan) {
-        status = completedScan.status;
-      }
-    }
-  }
-
   if (!repoUrl) return null;
 
   // Normalize status for UI
@@ -66,101 +43,62 @@ export default function MonorepoAction({
   const isSuccess = status === "SUCCESS" || status === "PASSED" || status === "MANUAL";
 
   return (
-    <div
-      className={`rounded-xl overflow-hidden mb-8 transition-all shadow-sm border
-      ${
-        isPending
-          ? "border-blue-200 bg-blue-50"
-          : isFailed
-          ? "border-amber-200 bg-amber-50"
-          : "border-green-200 bg-green-50"
-      }
-    `}
-    >
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-6">
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-          <div className="flex items-start gap-4">
-            <div
-              className={`p-3 rounded-xl backdrop-blur-sm shrink-0 ${
-                isPending
-                  ? "bg-blue-500/20 text-blue-300"
-                  : isFailed
-                  ? "bg-amber-500/20 text-amber-300"
-                  : "bg-green-500/20 text-green-300"
-              }`}
-            >
-              <GitBranch size={28} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                <h3 className="font-bold text-lg text-white">
-                  Multi-Service Repository
-                </h3>
-
-                {isPending && (
-                  <span className="text-[10px] bg-blue-500/20 text-blue-200 px-2 py-0.5 rounded border border-blue-500/30 flex items-center gap-1">
-                    <Loader2 size={10} className="animate-spin" /> Current Job Running
-                  </span>
-                )}
-                {isFailed && (
-                  <span className="text-[10px] bg-red-500/20 text-red-200 px-2 py-0.5 rounded border border-red-500/30 flex items-center gap-1">
-                    <XCircle size={10} /> Current Job Failed
-                  </span>
-                )}
-                {isSuccess && (
-                  <span className="text-[10px] bg-green-500/20 text-green-200 px-2 py-0.5 rounded border border-green-500/30 flex items-center gap-1">
-                    <CheckCircle size={10} /> Ready for Next
-                  </span>
-                )}
-              </div>
-              <p className="text-slate-300 text-sm leading-relaxed max-w-lg">
-                {isPending
-                  ? "The current scan is running. You can configure the next service now and it will be queued automatically."
-                  : isFailed
-                  ? "The current job had issues, but you can still add more services from this repository."
-                  : "Add another service from this repository (e.g., frontend, backend, microservices)."}
-              </p>
-            </div>
+    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow mb-8">
+      <div className="p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
+        
+        {/* Left: Icon & Info */}
+        <div className="flex items-start gap-4">
+          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg border border-indigo-100 shrink-0">
+            <GitBranch size={24} />
           </div>
-
-          <div className="flex gap-3 w-full lg:w-auto">
-            <AddServiceDialog groupId={groupId} repoUrl={repoUrl} />
-            <Link
-              href={`/scan/monorepo?repo=${encodeURIComponent(repoUrl)}`}
-              className="flex-1 lg:flex-none whitespace-nowrap flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium transition shadow-lg hover:shadow-indigo-500/20"
-            >
-              <Layers size={18} />
-              Multi-Service Wizard
-              <ArrowRight size={16} />
-            </Link>
+          <div>
+            <h3 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+              Multi-Service Repository
+              {isPending && <Loader2 size={14} className="animate-spin text-blue-500" />}
+            </h3>
+            <p className="text-sm text-slate-500 mt-1 max-w-xl">
+              This project is part of a monorepo. You can add more services (e.g., backend, frontend) from the same repository to track them together.
+            </p>
+            
+            {/* Status Context Helper */}
+            <div className="mt-3 flex items-center gap-2 text-xs">
+                 {isSuccess ? (
+                    <span className="flex items-center gap-1.5 text-emerald-600 font-medium bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-100">
+                        <CheckCircle2 size={12} />
+                        Current job complete. Ready for next service.
+                    </span>
+                 ) : isPending ? (
+                    <span className="flex items-center gap-1.5 text-blue-600 font-medium bg-blue-50 px-2.5 py-1 rounded-md border border-blue-100">
+                        <Loader2 size={12} className="animate-spin" />
+                        Scan in progress. New services will be queued.
+                    </span>
+                 ) : (
+                    <span className="flex items-center gap-1.5 text-amber-600 font-medium bg-amber-50 px-2.5 py-1 rounded-md border border-amber-100">
+                        <AlertTriangle size={12} />
+                        Current job failed. Check issues before adding more.
+                    </span>
+                 )}
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="px-6 py-2.5 flex items-center gap-2 text-xs border-t border-slate-200">
-        {isSuccess ? (
-          <>
-            <CheckCircle size={12} className="text-green-600" />
-            <span className="text-green-700">
-              Current job completed. Safe to proceed with next service.
-            </span>
-          </>
-        ) : isPending ? (
-          <>
-            <Loader2 size={12} className="text-blue-600 animate-spin" />
-            <span className="text-blue-700">
-              New jobs will be queued and processed in order (FIFO).
-            </span>
-          </>
-        ) : (
-          <>
-            <AlertTriangle size={12} className="text-amber-600" />
-            <span className="text-amber-700">
-              Check the failed job before proceeding. You may need to fix
-              configuration issues.
-            </span>
-          </>
-        )}
+        {/* Right: Actions */}
+        <div className="flex items-center gap-3 w-full md:w-auto mt-2 md:mt-0">
+            {/* Secondary Action: Wizard Link (Optional/Advanced) */}
+            <Link
+              href={`/scan/monorepo?repo=${encodeURIComponent(repoUrl)}`}
+              className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-indigo-600 hover:bg-slate-50 rounded-lg transition flex items-center gap-2 border border-transparent hover:border-slate-200"
+            >
+              <Layers size={16} />
+              <span>Full Wizard</span>
+            </Link>
+
+            {/* Primary Action: Add Service Dialog */}
+            <div className="relative">
+                <AddServiceDialog groupId={groupId} repoUrl={repoUrl} />
+            </div>
+        </div>
+
       </div>
     </div>
   );
