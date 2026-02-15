@@ -133,11 +133,34 @@ async function handleMessage(msg: ConsumeMessage, ch: Channel) {
   }
 
   try {
-    await prisma.scanHistory.update({
+    // [NEW] Concurrency Control - Wait if system is busy
+    const MAX_CONCURRENT = job.type === "SCAN_AND_BUILD" ? 4 : 6;
+    
+    while (true) {
+        const targetMode = job.type === "SCAN_AND_BUILD" ? "SCAN_AND_BUILD" : "SCAN_ONLY";
+        const activeScans = await prisma.scanHistory.count({
+            where: {
+                status: "RUNNING",
+                scanMode: targetMode
+            }
+        });
+
+        // console.log(`[Queue] DEBUG: Checking Concurrency for ${targetMode}. Active: ${activeScans}, Limit: ${MAX_CONCURRENT}`);
+
+        if (activeScans < MAX_CONCURRENT) {
+            break; // Slot available
+        }
+
+        console.log(`[Queue] System Busy (${activeScans}/${MAX_CONCURRENT} active). Job ${job.id} waiting...`);
+        await new Promise(r => setTimeout(r, 5000)); // Wait 5s
+    }
+
+    // Now mark as RUNNING and Trigger
+     await prisma.scanHistory.update({
       where: { id: job.scanHistoryId },
       data: { 
         status: "RUNNING",
-        scanLogs: appendLog(currentJob.scanLogs, "RUNNING", "Worker started processing job")
+        scanLogs: appendLog(currentJob.scanLogs, "RUNNING", "System slot allocated. Triggering pipeline...")
       },
     });
 
@@ -200,7 +223,9 @@ async function triggerGitLab(job: ScanJob): Promise<number> {
 
     // --- ตัวแปรสำหรับ Logic ---
     SCAN_MODE: job.type === "SCAN_AND_BUILD" ? "SCAN_AND_BUILD" : "SCAN_ONLY",
+    
     CONTEXT_PATH: job.contextPath,
+        
     IMAGE_TAG: job.imageTag || "latest",
     SCAN_HISTORY_ID: job.scanHistoryId,
 

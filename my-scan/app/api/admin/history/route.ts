@@ -49,3 +49,35 @@ export async function GET() {
     );
   }
 }
+
+export async function DELETE(req: Request) {
+  const session = await getServerSession(authOptions);
+  const userRole = (session?.user as any)?.role;
+
+  if (userRole !== "admin" && userRole !== "ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  try {
+    const body = await req.json();
+    const { ids } = body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json({ error: "Invalid IDs" }, { status: 400 });
+    }
+
+    const result = await prisma.scanHistory.deleteMany({
+      where: {
+        id: { in: ids },
+      },
+    });
+
+    return NextResponse.json({ count: result.count });
+  } catch (error) {
+    console.error("Bulk Delete Error:", error);
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
+  }
+}

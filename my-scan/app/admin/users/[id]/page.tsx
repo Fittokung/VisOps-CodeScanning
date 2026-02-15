@@ -4,10 +4,11 @@ import { useSession } from "next-auth/react";
 import useSWR from "swr";
 import { 
   User, Mail, Calendar, Shield, Activity, 
-  GitBranch, Server, Box, AlertTriangle, CheckCircle, XCircle, Clock
+  GitBranch, Server, Box, AlertTriangle, CheckCircle, XCircle, Clock, FileCode
 } from "lucide-react";
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { UserDockerEditorModal } from "@/components/admin/UserDockerEditorModal";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -19,6 +20,9 @@ export default function UserDetailsPage() {
 
   const { data: user, error } = useSWR(userId ? `/api/admin/users/${userId}` : null, fetcher);
   const [activeTab, setActiveTab] = useState<"OVERVIEW" | "PROJECTS" | "SCANS">("OVERVIEW");
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
+  const [selectedServiceName, setSelectedServiceName] = useState<string>("");
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
 
   if (error) return <div className="p-8 text-center text-red-500">Failed to load user</div>;
   if (!user) return <div className="p-8 text-center text-gray-500">Loading user details...</div>;
@@ -144,16 +148,37 @@ export default function UserDetailsPage() {
                         </div>
                         <div className="p-2">
                             {group.services?.map((service: any) => (
-                                <div key={service.id} className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded transition-colors">
+                                <div key={service.id} className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded transition-colors group">
                                     <div>
-                                        <div className="text-sm font-medium text-gray-900 dark:text-white">{service.serviceName}</div>
+                                        <div className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                                            {service.serviceName}
+                                            {service.useCustomDockerfile && (
+                                                <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded border border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800">
+                                                    Custom Dockerfile
+                                                </span>
+                                            )}
+                                        </div>
                                         <div className="text-xs text-gray-500">{service.imageName || "No image"}</div>
                                     </div>
-                                    <div className="text-right">
-                                        <div className="text-xs text-gray-500">Last Scan</div>
-                                        <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                            {service.lastScanAt ? new Date(service.lastScanAt).toLocaleDateString() : "-"}
+                                    <div className="flex items-center gap-4">
+                                        <div className="text-right">
+                                            <div className="text-xs text-gray-500">Last Scan</div>
+                                            <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                                {service.lastScanAt ? new Date(service.lastScanAt).toLocaleDateString() : "-"}
+                                            </div>
                                         </div>
+                                        
+                                        <button
+                                            onClick={() => {
+                                                setSelectedServiceId(service.id);
+                                                setSelectedServiceName(service.serviceName);
+                                                setIsEditorOpen(true);
+                                            }}
+                                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded opacity-0 group-hover:opacity-100 transition-all"
+                                            title="Edit Dockerfile"
+                                        >
+                                            <FileCode className="h-4 w-4" />
+                                        </button>
                                     </div>
                                 </div>
                             ))}
@@ -215,9 +240,17 @@ export default function UserDetailsPage() {
         )}
 
       </div>
+      
+      <UserDockerEditorModal 
+        isOpen={isEditorOpen} 
+        onClose={() => setIsEditorOpen(false)} 
+        serviceId={selectedServiceId}
+        serviceName={selectedServiceName}
+      />
     </div>
   );
 }
+
 
 function StatCard({ label, value }: any) {
     return (

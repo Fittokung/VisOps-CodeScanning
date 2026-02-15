@@ -210,7 +210,10 @@ semgrep_scan:
   image: returntocorp/semgrep:$SEMGREP_VERSION
   needs: ["fetch_and_detect"]
   script:
-    - semgrep scan --config=p/ci --json --output=semgrep-report.json --metrics=off "$CONTEXT_PATH"
+    # Added --exclude flags to prevent scanning large directories (node_modules, dist, etc.)
+    # This fixes the "exited with -9" (OOM) error.
+    - semgrep scan --config=p/ci --json --output=semgrep-report.json --metrics=off --exclude='node_modules' --exclude='dist' --exclude='build' --exclude='vendor' --exclude='.git' --exclude='**/*.min.js' "$CONTEXT_PATH"
+    
     # Webhook: Send Semgrep Report
     - |
       if [ "$ENABLE_WEBHOOKS" = "true" ]; then
