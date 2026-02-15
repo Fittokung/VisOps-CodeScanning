@@ -39,9 +39,9 @@ async function main() {
   // Verify DB Persistence
   const verifiedService = await prisma.projectService.findUnique({ where: { id: service.id } });
   if (verifiedService?.dockerfileContent === customContent) {
-      console.log("   ✅ Dockerfile content persisted correctly in DB.");
+      console.log("    Dockerfile content persisted correctly in DB.");
   } else {
-      console.error("   ❌ Dockerfile content persistence failed!");
+      console.error("   Dockerfile content persistence failed!");
   }
 
   // NOTE: To verify it actually gets to the worker, we'd need to intercept the message or check logs. 
@@ -96,7 +96,7 @@ async function main() {
           _count: { status: true }
       });
       
-      const counts = stats.reduce((acc, curr) => ({ ...acc, [curr.status]: curr._count.status }), {});
+      const counts = stats.reduce((acc, curr) => ({ ...acc, [curr.status]: curr._count.status }), {} as Record<string, number>);
       console.log(`   [${timeLeft}s] Status:`, JSON.stringify(counts));
       
       timeLeft -= 5;
@@ -105,11 +105,11 @@ async function main() {
           console.log("\n[3/3] 🏁 Verification Complete.");
           
           if (counts['RUNNING'] > 0 || counts['SUCCESS'] > 0 || counts['FAILED'] > 0) {
-               console.log("   ✅ Jobs are being picked up by worker.");
+               console.log("    Jobs are being picked up by worker.");
                if (counts['QUEUED'] === 0) {
-                   console.log("   ℹ️ Queue drained completely (Worker is fast).");
+                   console.log("  Queue drained completely (Worker is fast).");
                } else {
-                   console.log("   ℹ️ Queue holding excess jobs (Backpressure active).");
+                   console.log("  Queue holding excess jobs (Backpressure active).");
                }
           } else {
                console.log("   ⚠️ Jobs remain QUEUED. Is the worker running?");

@@ -26,6 +26,8 @@ export const authOptions: NextAuthOptions = {
     updateAge: 5 * 60, // Update session every 5 minutes
   },
   providers: [
+    // Google Provider Removed per user request
+    /*
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID || "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
@@ -43,6 +45,7 @@ export const authOptions: NextAuthOptions = {
         };
       },
     }),
+    */
     {
       id: "cmu-entraid",
       name: "CMU EntraID",
