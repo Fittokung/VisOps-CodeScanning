@@ -53,9 +53,9 @@ export const authOptions: NextAuthOptions = {
       clientId: process.env.CMU_ENTRAID_CLIENT_ID,
       clientSecret: process.env.CMU_ENTRAID_CLIENT_SECRET,
       authorization: {
-        url: process.env.CMU_ENTRAID_AUTHORIZATION_URL || "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+        url: process.env.CMU_ENTRAID_AUTHORIZATION_URL,
         params: {
-          scope: process.env.Scope || "api://cmu/Mis.Account.Read.Me.Basicinfo offline_access",
+          scope: process.env.SCOPE,
           redirect_uri: process.env.CMU_ENTRAID_REDIRECT_URL,
         },
       },
@@ -111,7 +111,6 @@ export const authOptions: NextAuthOptions = {
               refresh_token: tokens.refresh_token,
               scope: tokens.scope,
               expires_at: tokens.expires_in ? Math.floor(Date.now() / 1000 + tokens.expires_in) : undefined,
-              // Do NOT include ext_expires_in or others not in Prisma Schema
             },
           };
         }

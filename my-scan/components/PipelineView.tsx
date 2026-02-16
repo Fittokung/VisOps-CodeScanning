@@ -17,15 +17,12 @@ import { ComparisonSection } from "./pipeline/ComparisonSection";
 import { CriticalVulnerabilitiesBlock } from "./pipeline/CriticalVulnerabilitiesBlock";
 import { FindingsTable } from "./pipeline/FindingsTable";
 
-export default function PipelineView({
-  scanId,
-  scanMode,
-  initialData, // [NEW]
-}: {
+export default function PipelineView(props: {
   scanId: string;
   scanMode?: string;
-  initialData?: any; // [NEW]
+  initialData?: any;
 }) {
+  const { scanId, scanMode, initialData } = props;
   const router = useRouter();
   const [run, setRun] = useState<Run | null>(initialData || null); // Initialize with server data
   const [comparison, setComparison] = useState<ComparisonData | null>(null);

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, GitBranch, Hash, Package, Timer, Download, Rocket } from "lucide-react";
 import ScanTimeline from "@/components/ScanTimeline";
 import PipelineStepper from "@/components/PipelineStepper";
+import ProjectInfoButton from "@/components/ProjectInfoButton";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -51,6 +52,8 @@ export default async function ScanPage(props: Props) {
         service: {
           select: {
             serviceName: true,
+            imageName: true, // [NEW]
+            contextPath: true, // [NEW]
             group: {
               select: {
                 id: true,
@@ -150,6 +153,11 @@ export default async function ScanPage(props: Props) {
                         })()}
                       </span>
                     </div>
+                  )}
+
+                  {/* [NEW] Project Info Button */}
+                  {scanData.service.group.id && (
+                     <ProjectInfoButton projectId={scanData.service.group.id} />
                   )}
 
                   {/* [NEW] Deployed Badge */}
