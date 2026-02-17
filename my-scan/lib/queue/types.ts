@@ -23,6 +23,9 @@ export interface ScanJob {
   gitToken?: string;
   dockerToken?: string;
   dockerUser?: string;
+
+  // [NEW] Scan Mode Configuration
+  trivyScanMode?: "fast" | "full";
 }
 
 export interface JobResult {

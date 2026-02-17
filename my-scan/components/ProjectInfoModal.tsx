@@ -108,153 +108,134 @@ export function ProjectInfoModal({ projectId, isOpen, onClose }: ProjectInfoModa
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      {/* [NEW] increased width to max-w-5xl */}
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto p-0 gap-0 bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800">
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto p-0 gap-0 bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 shadow-2xl block">
         
         {/* Header Banner */}
-        <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20 flex items-start justify-between pr-12">
-          <div className="space-y-1">
-             <DialogTitle className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                {info?.projectName || "Loading..."}
-                {loading && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
-             </DialogTitle>
-             <div className="flex items-center gap-2 text-sm text-slate-500">
-                <GitBranch size={14} />
-                <a href={info?.settings.repoUrl} target="_blank" rel="noreferrer" className="hover:text-blue-500 hover:underline transition-colors truncate max-w-sm block">
-                    {info?.settings.repoUrl || "..."}
-                </a>
+        <div className="sticky top-0 z-10 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+             <div className="p-2.5 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
+                <Box className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+             </div>
+             <div>
+                <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    {info?.projectName || "Loading Project..."}
+                </DialogTitle>
+                <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
+                    <a href={info?.settings.repoUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 hover:text-blue-500 transition-colors">
+                        <GitBranch size={12} />
+                        {info?.settings.repoUrl?.replace("https://github.com/", "") || "..."}
+                    </a>
+                    <span className="text-slate-300 dark:text-slate-700">•</span>
+                    <div className="flex items-center gap-1">
+                        {info?.settings.isPrivateRepo ? <Lock size={10} /> : <Globe size={10} />}
+                        {info?.settings.isPrivateRepo ? "Private" : "Public"}
+                    </div>
+                </div>
              </div>
           </div>
           
-          {info && (
-             <div className={cn(
-                "px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 border",
-                info.settings.isPrivateRepo 
-                    ? "bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-900/30"
-                    : "bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-900/30"
-             )}>
-                {info.settings.isPrivateRepo ? <Lock size={10} /> : <Globe size={10} />}
-                {info.settings.isPrivateRepo ? "Private" : "Public"}
-             </div>
-          )}
+          <button 
+            onClick={onClose}
+            className="p-2 -mr-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+          >
+            <Check className="w-5 h-5" />
+          </button>
         </div>
 
-        <div className="p-6 space-y-8">
+        <div className="p-6 space-y-6">
             {error ? (
-                <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg border border-red-100 dark:border-red-900/30">
-                    {error}
+                <div className="p-4 bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400 rounded-lg border border-red-100 dark:border-red-900/20 text-sm flex items-center gap-2">
+                    <Shield className="w-4 h-4" /> {error}
                 </div>
             ) : !info ? (
-                <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                <div className="flex flex-col items-center justify-center py-16 space-y-4">
                     <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-                    <p className="text-sm text-slate-400">Loading project details...</p>
+                    <p className="text-sm text-slate-400">Loading details...</p>
                 </div>
             ) : (
                 <>
-                    {/* Top Grid: Config & Credentials & Services */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        
-                        {/* Left: Configuration & Services */}
-                        <TiltCard className="space-y-4 p-4 rounded-xl hover:bg-slate-50/50 dark:hover:bg-slate-900/20 border border-transparent hover:border-slate-100 dark:hover:border-slate-800 transition-all group/tilt">
-                            <SectionHeader icon={Settings} title={`Configuration (${info.serviceCount} Services)`} />
-                            
-                            {/* Service List */}
-                            <div className="space-y-2">
-                                {info.services && info.services.length > 0 ? (
-                                    info.services.map((svc, idx) => (
-                                        <div key={idx} className="bg-white dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-800 p-3 shadow-sm flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                 <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-500">
-                                                    <Server size={14} />
-                                                 </div>
-                                                 <div>
-                                                     <p className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">{svc.name}</p>
-                                                     <p className="text-sm font-mono text-slate-500 dark:text-slate-400">{svc.image}</p>
-                                                 </div>
-                                            </div>
-                                            <div className="text-[10px] font-mono bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-slate-500">
-                                                {svc.context}
-                                            </div>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <div className="p-3 text-sm text-slate-500 italic">No services details available</div>
-                                )}
-                            </div>
-                            
-                            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                                <div className="flex items-center justify-between px-2">
-                                    <span className="text-xs font-semibold text-slate-400 uppercase">Security Scan</span>
-                                    <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full">
-                                        Enabled (Trivy + Gitleaks)
-                                    </span>
+                    {/* Stats Row */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800">
+                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Services</p>
+                             <p className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                {info.serviceCount}
+                                <span className="text-xs font-normal text-slate-500">Active</span>
+                             </p>
+                        </div>
+                         <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800">
+                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Security</p>
+                             <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 mt-1">
+                                <Shield size={14} /> Enabled
+                             </p>
+                        </div>
+                        <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 col-span-2">
+                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Credentials</p>
+                             <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-1.5 text-xs font-medium text-slate-700 dark:text-slate-300">
+                                    <GitBranch size={12} className="text-[#F1502F]" />
+                                    {info.credentials.gitUser}
                                 </div>
-                            </div>
-                        </TiltCard>
-
-                        {/* Right: Credentials */}
-                        <TiltCard className="space-y-4 p-4 rounded-xl hover:bg-slate-50/50 dark:hover:bg-slate-900/20 border border-transparent hover:border-slate-100 dark:hover:border-slate-800 transition-all group/tilt">
-                             <SectionHeader icon={Key} title="Credentials" />
-                             <div className="grid grid-cols-1 gap-3">
-                                {/* Git Creds */}
-                                <div className="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 rounded-lg bg-[#F1502F]/10 text-[#F1502F]">
-                                            <GitBranch size={16} />
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-semibold text-slate-500 uppercase">Git Access</p>
-                                            <p className="text-sm font-medium text-slate-900 dark:text-white">{info.credentials.gitUser}</p>
-                                        </div>
-                                    </div>
-                                    <div className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-mono text-slate-500">
-                                        ••••••••
-                                    </div>
-                                </div>
-
-                                {/* Docker Creds */}
-                                <div className="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 rounded-lg bg-[#0db7ed]/10 text-[#0db7ed]">
-                                            <Box size={16} />
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-semibold text-slate-500 uppercase">Docker Hub</p>
-                                            <p className="text-sm font-medium text-slate-900 dark:text-white">{info.credentials.dockerUser}</p>
-                                        </div>
-                                    </div>
-                                    <div className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-mono text-slate-500">
-                                        ••••••••
-                                    </div>
+                                <div className="h-3 w-px bg-slate-300 dark:bg-slate-700" />
+                                <div className="flex items-center gap-1.5 text-xs font-medium text-slate-700 dark:text-slate-300">
+                                    <Box size={12} className="text-[#0db7ed]" />
+                                    {info.credentials.dockerUser}
                                 </div>
                              </div>
-                        </TiltCard>
+                        </div>
                     </div>
 
-                    {/* Bottom: Dockerfile */}
+                    {/* Services List */}
                     <div className="space-y-3">
+                        <SectionHeader icon={Server} title="Configured Services" />
+                        <div className="grid grid-cols-1 gap-2">
+                            {info.services?.map((svc, idx) => (
+                                <div key={idx} className="group flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700 bg-white dark:bg-slate-900 transition-all">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 font-bold text-xs uppercase">
+                                            {svc.name.substring(0, 2)}
+                                        </div>
+                                        <div>
+                                            <h4 className="text-sm font-semibold text-slate-900 dark:text-white leading-none mb-1">{svc.name}</h4>
+                                            <p className="text-xs text-slate-500 font-mono">{svc.image}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <div className="text-[10px] font-medium px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-md text-slate-500 font-mono flex items-center gap-1.5">
+                                            <span className="text-slate-400">path:</span> {svc.context}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Dockerfile Preview */}
+                    <div className="space-y-3 pt-2">
                         <div className="flex items-center justify-between">
                              <SectionHeader icon={FileCode} title="Dockerfile Preview" />
-                             <div className="text-xs text-slate-400 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
-                                Source: <span className="font-semibold text-blue-500">{info.dockerfileSource}</span>
+                             <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-slate-400 px-2 py-1 rounded bg-slate-100 dark:bg-slate-800">
+                                   {info.dockerfileSource}
+                                </span>
+                                <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    onClick={handleCopy} 
+                                    className="h-6 text-[10px] px-2 text-slate-500 hover:text-blue-600"
+                                >
+                                    {copied ? <Check size={12} className="mr-1" /> : <Copy size={12} className="mr-1" />}
+                                    {copied ? "Copied" : "Copy"}
+                                </Button>
                              </div>
                         </div>
                         
-                        <div className="relative group/code">
-                            <div className="absolute top-3 right-3 opacity-0 group-hover/code:opacity-100 transition-all z-10">
-                                <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    onClick={handleCopy} 
-                                    className="h-7 text-xs shadow-sm bg-white/90 hover:bg-white dark:bg-slate-800/90 dark:hover:bg-slate-800 backdrop-blur-sm border-slate-200 dark:border-slate-700"
-                                >
-                                    {copied ? <Check size={12} className="mr-1.5 text-green-500" /> : <Copy size={12} className="mr-1.5" />}
-                                    {copied ? "Copied" : "Copy"}
-                                </Button>
-                            </div>
-                            <pre className="block w-full bg-[#0d1117] text-slate-300 p-4 rounded-xl text-xs overflow-x-auto font-mono border border-slate-800 shadow-inner h-[250px] overflow-y-auto leading-relaxed scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+                        <div className="relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
+                            <pre className="block p-4 text-[10px] font-mono leading-relaxed overflow-x-auto h-[180px] text-slate-600 dark:text-slate-400 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">
                                 <code>{info.dockerfileContent}</code>
                             </pre>
+                            {/* Gradient Fade for long content */}
+                            <div className="absolute bottom-0 left-0 w-full h-8 bg-gradient-to-t from-slate-50 dark:from-slate-900 to-transparent pointer-events-none" />
                         </div>
                     </div>
                 </>

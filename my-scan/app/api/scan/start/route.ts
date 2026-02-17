@@ -254,6 +254,9 @@ export async function POST(req: Request) {
       gitToken: githubToken,
       dockerToken: dockerToken,
       dockerUser: dockerCred?.username,
+
+      // [NEW] Default to FULL scan
+      trivyScanMode: "full",
     };
 
     const published = await publishScanJob(job);
