@@ -288,7 +288,8 @@ export default function AdminUsersPage() {
                                             className="text-xs px-2 py-1 rounded hover:bg-red-50 text-red-600 border border-transparent hover:border-red-200 transition-colors"
                                             title="Ban User"
                                         >
-                                            Ban
+                                            Reject
+
                                         </button>
                                     )}
                                 </>
