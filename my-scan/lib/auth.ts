@@ -145,8 +145,11 @@ export const authOptions: NextAuthOptions = {
           where: { email: credentials.email },
         });
 
-        // Only allow admins to login via credentials
-        if (!user || !user.password || user.role !== "ADMIN") {
+        // Allow admins to login via credentials OR allow anyone in development mode
+        const isDev = process.env.NODE_ENV === "development";
+        const isAdmin = user && user.role === "ADMIN";
+
+        if (!user || !user.password || (!isAdmin && !isDev)) {
           throw new Error("Invalid credentials or not an admin");
         }
 
