@@ -13,6 +13,7 @@ import {
 } from "@/lib/scanConfig";
 import { checkDuplicateGlobally } from "@/lib/validators/serviceValidator";
 import { z } from "zod";
+import { logAction, AuditAction } from "@/lib/logger";
 
 const ScanStartSchema = z.object({
   serviceId: z.string().optional(),
@@ -277,6 +278,16 @@ export async function POST(req: Request) {
         console.error("Cleanup error:", err),
       );
     }
+
+
+    
+    // Audit Log
+    await logAction(userId, AuditAction.SCAN_START, `ScanHistory:${scanHistory.id}`, {
+      serviceId: projectId,
+      scanMode,
+      imageTag,
+      repoUrl: finalConfig.repoUrl,
+    });
 
     return NextResponse.json({
       success: true,

@@ -61,9 +61,21 @@ export default function UserDetailsPage() {
         
         <div className="flex-1">
           <div className="flex items-center gap-3">
-             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                {user.name || user.email || "Unknown User"}
-             </h1>
+             <div>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {user.firstnameTH ? `${user.firstnameTH} ${user.lastnameTH}` : (user.name || user.email || "Unknown User")}
+                </h1>
+                <div className="flex flex-col">
+                    {user.firstnameTH && user.name && (
+                        <span className="text-sm text-gray-500 dark:text-gray-400">{user.name}</span>
+                    )}
+                    {user.studentId && (
+                        <span className="text-xs font-mono text-purple-600 dark:text-purple-400 mt-0.5">
+                            {user.studentId}
+                        </span>
+                    )}
+                </div>
+             </div>
              <span className={`px-2 py-0.5 rounded text-xs font-medium border ${
                 user.role === "ADMIN" 
                 ? "bg-gray-100 border-gray-300 text-gray-800 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200"
@@ -98,6 +110,53 @@ export default function UserDetailsPage() {
           </div>
         </div>
       </div>
+      
+      {/* CMU Profile Details (if available) */}
+      {(user.firstnameTH || user.organizationName || user.studentId) && (
+        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6 shadow-sm">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <Shield className="w-5 h-5 text-purple-600" />
+                CMU Profile Data
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {user.firstnameTH && (
+                    <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-semibold mb-1">Thai Name</p>
+                        <p className="text-sm text-gray-900 dark:text-white font-medium">{user.firstnameTH} {user.lastnameTH}</p>
+                    </div>
+                )}
+                {user.firstnameEN && (
+                    <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-semibold mb-1">English Name</p>
+                        <p className="text-sm text-gray-900 dark:text-white font-medium">{user.firstnameEN} {user.lastnameEN}</p>
+                    </div>
+                )}
+                {user.studentId && (
+                    <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-semibold mb-1">Student ID</p>
+                        <p className="text-sm text-gray-900 dark:text-white font-medium font-mono">{user.studentId}</p>
+                    </div>
+                )}
+                {user.organizationName && (
+                    <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-semibold mb-1">Organization</p>
+                        <p className="text-sm text-gray-900 dark:text-white font-medium">
+                            {user.organizationName} 
+                            {user.organizationCode && <span className="opacity-60 ml-1">({user.organizationCode})</span>}
+                        </p>
+                    </div>
+                )}
+                {user.itAccountType && (
+                    <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-semibold mb-1">Account Type</p>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                            {user.itAccountType}
+                        </span>
+                    </div>
+                )}
+            </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="border-b border-gray-200 dark:border-gray-800 flex gap-6">

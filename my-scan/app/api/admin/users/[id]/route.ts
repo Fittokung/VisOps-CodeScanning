@@ -42,6 +42,15 @@ export async function GET(
         createdAt: true,
         updatedAt: true,
         isSetupComplete: true,
+        // CMU Profile Data
+        firstnameTH: true,
+        lastnameTH: true,
+        firstnameEN: true,
+        lastnameEN: true,
+        organizationCode: true,
+        organizationName: true,
+        itAccountType: true,
+        studentId: true,
         // Get Provider from accounts if available
         accounts: {
           select: { provider: true },

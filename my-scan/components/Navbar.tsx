@@ -15,6 +15,7 @@ import {
   FileText,
   Sliders,
   Layers,
+  User,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -156,6 +157,15 @@ export default function Navbar() {
 
               <div className="p-1.5 space-y-1">
                 <Link
+                  href="/profile"
+                  onClick={() => setIsDropdownOpen(false)}
+                  className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-gray-600 dark:text-slate-300 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors"
+                >
+                  <User size={18} className="text-slate-400 dark:text-slate-500" />
+                  My Profile
+                </Link>
+
+                <Link
                   href="/settings"
                   onClick={() => setIsDropdownOpen(false)}
                   className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-gray-600 dark:text-slate-300 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors"
@@ -169,7 +179,9 @@ export default function Navbar() {
 
               <div className="p-1.5">
                 <button
-                  onClick={() => signOut({ callbackUrl: "/" })}
+                  onClick={() => signOut({ 
+                    callbackUrl: process.env.NEXT_PUBLIC_CMU_ENTRAID_LOGOUT_URL || "/" 
+                  })}
                   className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-red-600 dark:text-red-400 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                 >
                   <LogOut size={18} />

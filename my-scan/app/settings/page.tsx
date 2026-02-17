@@ -137,6 +137,8 @@ export default function SettingsPage() {
         </p>
       </div>
 
+
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* GitHub Section */}
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col h-full">
