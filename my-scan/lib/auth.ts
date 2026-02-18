@@ -1,4 +1,4 @@
-// lib/auth.ts
+// lib/auth.ts - forcing update
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
@@ -125,6 +125,16 @@ export const authOptions: NextAuthOptions = {
           role: "user",
           status: "PENDING",
           isSetupComplete: false,
+          
+          // Map CMU Fields
+          firstnameTH: profile.firstname_TH,
+          lastnameTH: profile.lastname_TH,
+          firstnameEN: profile.firstname_EN,
+          lastnameEN: profile.lastname_EN,
+          organizationCode: profile.organization_code,
+          organizationName: profile.organization_name_EN,
+          itAccountType: profile.itaccounttype_EN,
+          studentId: profile.student_id,
         };
       },
       checks: ["pkce", "state"], 
@@ -184,11 +194,21 @@ export const authOptions: NextAuthOptions = {
           select: {
             id: true,
             isSetupComplete: true,
-            role: true,
             status: true,
             email: true,
             name: true,
             image: true,
+            role: true,
+            
+            // CMU Fields
+            firstnameTH: true,
+            lastnameTH: true,
+            firstnameEN: true,
+            lastnameEN: true,
+            organizationCode: true,
+            organizationName: true,
+            itAccountType: true,
+            studentId: true,
           },
         });
 
@@ -202,6 +222,16 @@ export const authOptions: NextAuthOptions = {
           token.isSetupComplete = dbUser.isSetupComplete;
           token.role = dbUser.role;
           token.status = dbUser.status;
+          
+          // Pass CMU Fields to Token
+          token.firstnameTH = dbUser.firstnameTH;
+          token.lastnameTH = dbUser.lastnameTH;
+          token.firstnameEN = dbUser.firstnameEN;
+          token.lastnameEN = dbUser.lastnameEN;
+          token.organizationCode = dbUser.organizationCode;
+          token.organizationName = dbUser.organizationName;
+          token.itAccountType = dbUser.itAccountType;
+          token.studentId = dbUser.studentId;
           
           // Prevent large payloads (base64 images) from bloating the token and causing HTTP 431
           if (dbUser.image && dbUser.image.length > 2048) {
@@ -221,11 +251,68 @@ export const authOptions: NextAuthOptions = {
         session.user.role = token.role as string;
         session.user.status = token.status as string;
         session.user.image = token.image as string; // Pass image to session
+        
+        // Pass CMU Fields to Session
+        session.user.firstnameTH = token.firstnameTH as string | null;
+        session.user.lastnameTH = token.lastnameTH as string | null;
+        session.user.firstnameEN = token.firstnameEN as string | null;
+        session.user.lastnameEN = token.lastnameEN as string | null;
+        session.user.organizationCode = token.organizationCode as string | null;
+        session.user.organizationName = token.organizationName as string | null;
+        session.user.itAccountType = token.itAccountType as string | null;
+        session.user.studentId = token.studentId as string | null;
       }
       return session;
     },
   },
   pages: {
     signIn: "/login",
+  },
+  events: {
+    async signIn({ user, account, profile, isNewUser }) {
+      try {
+        console.log("DEBUG: SignIn Event Triggered");
+        console.log("DEBUG: Provider:", account?.provider);
+        if (profile) {
+            console.log("DEBUG: Profile Keys:", Object.keys(profile));
+            console.log("DEBUG: Profile Data (Partial):", JSON.stringify({
+                firstname_TH: (profile as any).firstname_TH,
+                organization_name_EN: (profile as any).organization_name_EN,
+                itaccounttype_EN: (profile as any).itaccounttype_EN
+            }, null, 2));
+        }
+
+        // Sync CMU Profile Data on every login
+        if (account?.provider === "cmu-entraid" && profile) {
+           const cmuProfile = profile as any;
+           await prisma.user.update({
+             where: { id: user.id },
+             data: {
+               firstnameTH: cmuProfile.firstname_TH,
+               lastnameTH: cmuProfile.lastname_TH,
+               firstnameEN: cmuProfile.firstname_EN,
+               lastnameEN: cmuProfile.lastname_EN,
+               organizationCode: cmuProfile.organization_code,
+               organizationName: cmuProfile.organization_name_EN,
+               itAccountType: cmuProfile.itaccounttype_EN,
+               studentId: cmuProfile.student_id,
+             }
+           });
+        }
+
+        await prisma.auditLog.create({
+          data: {
+            actorId: user.id,
+            action: "LOGIN",
+            details: {
+              provider: account?.provider,
+              isNewUser,
+            },
+          },
+        });
+      } catch (error) {
+        console.error("Failed to log sign in or sync profile:", error);
+      }
+    },
   },
 };

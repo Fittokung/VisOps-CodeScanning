@@ -238,6 +238,9 @@ async function triggerGitLab(job: ScanJob): Promise<number> {
     PROJECT_NAME: projectPath, 
     FRONTEND_USER: job.username || "unknown_user", // [INFO] Use Username instead of ID
     USER_TAG: job.imageTag || "latest",
+
+    // [NEW] Pass Trivy Scan Mode
+    TRIVY_SCAN_MODE: job.trivyScanMode || "full",
   };
 
   if (job.imageName) variables.IMAGE_NAME = job.imageName;

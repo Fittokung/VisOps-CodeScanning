@@ -1,4 +1,4 @@
-// lib/logger.ts
+// lib/logger.ts - forcing update
 // Structured logging utility for consistent log formatting
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -105,4 +105,42 @@ export const logger = {
   },
 };
 
+
 export type Logger = typeof logger;
+
+// --- Audit Logging (Database) ---
+import { prisma } from "@/lib/prisma";
+
+export enum AuditAction {
+  LOGIN = "LOGIN",
+  LOGOUT = "LOGOUT",
+  SCAN_START = "SCAN_START",
+  UPDATE_SETTINGS = "UPDATE_SETTINGS",
+  VIEW_REPORT = "VIEW_REPORT",
+  DOWNLOAD_REPORT = "DOWNLOAD_REPORT",
+}
+
+export async function logAction(
+  userId: string,
+  action: AuditAction | string,
+  resource?: string,
+  details?: any,
+  ipAddress?: string,
+  userAgent?: string
+) {
+  try {
+    await prisma.auditLog.create({
+      data: {
+        actorId: userId,
+        action: action.toString(),
+        resource,
+        details: details ? JSON.parse(JSON.stringify(details)) : undefined,
+        ipAddress,
+        userAgent,
+      },
+    });
+  } catch (error) {
+    console.error("Failed to create audit log:", error);
+    // Non-blocking
+  }
+}

@@ -58,6 +58,17 @@ model User {
   groups         ProjectGroup[]
   sessions       Session[]
   supportTickets SupportTicket[]
+  auditLogs      AuditLog[]
+
+  // CMU Profile Data
+  firstnameTH      String?
+  lastnameTH       String?
+  firstnameEN      String?
+  lastnameEN       String?
+  organizationCode String?
+  organizationName String?
+  itAccountType    String?
+  studentId        String?
 }
 
 model Credential {
@@ -180,4 +191,21 @@ model SupportTicket {
 
   @@index([userId, status])
   @@index([status, priority])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  actorId   String
+  action    String   // e.g., "LOGIN", "START_SCAN", "UPDATE_SETTINGS"
+  resource  String?  // e.g., "ProjectService:123"
+  details   Json?    // Flexible JSON for details
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  
+  actor     User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
 }

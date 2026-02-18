@@ -15,8 +15,8 @@ const envSchema = z.object({
   NEXTAUTH_URL: z.string().url().optional(),
   
   // Google OAuth
-  GOOGLE_CLIENT_ID: z.string().min(1, "GOOGLE_CLIENT_ID is required"),
-  GOOGLE_CLIENT_SECRET: z.string().min(1, "GOOGLE_CLIENT_SECRET is required"),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
   
   // GitLab (optional but recommended)
   GITLAB_URL: z.string().url().optional().default("https://gitlab.com"),

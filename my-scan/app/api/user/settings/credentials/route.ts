@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { encrypt } from "@/lib/crypto";
+import { logAction, AuditAction } from "@/lib/logger";
 
 // GET: ดึงรายการไปแสดง
 export async function GET() {
@@ -67,6 +68,13 @@ export async function POST(req: Request) {
       data: { isSetupComplete: true },
     });
 
+    // Audit Log
+    await logAction(userId, AuditAction.UPDATE_SETTINGS, `Credential:${newCred.id}`, {
+      type: "ADD_CREDENTIAL",
+      provider,
+      name,
+    });
+
     return NextResponse.json({ success: true, credential: newCred });
   } catch (error) {
     return NextResponse.json(
@@ -92,6 +100,11 @@ export async function DELETE(req: Request) {
       id,
       userId: (session.user as any).id, // ป้องกันการลบของคนอื่น
     },
+  });
+
+  // Audit Log
+  await logAction((session.user as any).id, AuditAction.UPDATE_SETTINGS, `Credential:${id}`, {
+    type: "DELETE_CREDENTIAL",
   });
 
   return NextResponse.json({ success: true });
