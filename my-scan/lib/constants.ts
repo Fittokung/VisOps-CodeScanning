@@ -48,7 +48,7 @@ export type UserRole = typeof UserRoles[keyof typeof UserRoles];
 // Quota & Limits
 // ============================================
 export const Limits = {
-  MAX_ACTIVE_PROJECTS: 6,
+  MAX_ACTIVE_PROJECTS: 6, // Default fallback — actual limit is per-user (user.maxProjects in DB)
   MAX_SCANS_PER_SERVICE: 10,
   MAX_SCAN_AGE_DAYS: 30,
   MAX_CONCURRENT_SCANS_PER_SERVICE: 1,
