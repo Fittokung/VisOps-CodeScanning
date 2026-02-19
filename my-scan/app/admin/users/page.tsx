@@ -27,6 +27,7 @@ interface User {
   status: "ACTIVE" | "PENDING" | "REJECTED";
   image: string | null;
   createdAt: string;
+  maxProjects: number;
   provider: string; 
   stats: {
     projects: number;
@@ -56,6 +57,24 @@ export default function AdminUsersPage() {
   const itemsPerPage = 10;
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [editingQuotaId, setEditingQuotaId] = useState<string | null>(null);
+  const [quotaValue, setQuotaValue] = useState<number>(6);
+
+  // Handle quota update
+  const handleQuotaUpdate = async (userId: string, newQuota: number) => {
+    try {
+      const res = await fetch("/api/admin/users/quota", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, maxProjects: newQuota }),
+      });
+      if (!res.ok) throw new Error("Failed to update quota");
+      mutate(); // Refresh user list
+      setEditingQuotaId(null);
+    } catch (err) {
+      console.error("Quota update failed:", err);
+    }
+  };
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -207,7 +226,7 @@ export default function AdminUsersPage() {
               <tr>
                 <SortHeader label="User" field="name" currentSort={sortField} currentDirection={sortDirection} onSort={handleSort} className="w-[30%]" />
                 <SortHeader label="Role" field="role" currentSort={sortField} currentDirection={sortDirection} onSort={handleSort} className="w-[10%]" />
-                <SortHeader label="Projects" field="stats.projects" currentSort={sortField} currentDirection={sortDirection} onSort={handleSort} className="w-[10%]" />
+                <SortHeader label="Quota" field="stats.projects" currentSort={sortField} currentDirection={sortDirection} onSort={handleSort} className="w-[10%]" />
                 <SortHeader label="Status" field="status" currentSort={sortField} currentDirection={sortDirection} onSort={handleSort} className="w-[15%]" />
                 <SortHeader label="Joined" field="createdAt" currentSort={sortField} currentDirection={sortDirection} onSort={handleSort} className="w-[15%]" />
                 <th className="px-6 py-3 font-medium text-right min-w-[120px]">Actions</th>
@@ -258,7 +277,50 @@ export default function AdminUsersPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                        <span className="text-gray-900 dark:text-white font-medium">{user.stats?.projects || 0}</span>
+                      {editingQuotaId === user.id ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min={1}
+                            max={100}
+                            value={quotaValue}
+                            onChange={(e) => setQuotaValue(Number(e.target.value))}
+                            className="w-14 px-1.5 py-0.5 text-xs border border-indigo-300 dark:border-indigo-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-1 focus:ring-indigo-500 outline-none"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleQuotaUpdate(user.id, quotaValue);
+                              if (e.key === 'Escape') setEditingQuotaId(null);
+                            }}
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => handleQuotaUpdate(user.id, quotaValue)}
+                            className="text-green-600 hover:text-green-700 text-xs px-1"
+                          >✓</button>
+                          <button
+                            onClick={() => setEditingQuotaId(null)}
+                            className="text-gray-400 hover:text-gray-600 text-xs px-1"
+                          >✗</button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setEditingQuotaId(user.id);
+                            setQuotaValue(user.maxProjects);
+                          }}
+                          className="group flex items-center gap-1 hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1.5 py-0.5 -mx-1.5 transition-colors"
+                          title="Click to edit quota"
+                        >
+                          <span className={`text-sm font-medium ${
+                            (user.stats?.services || 0) >= user.maxProjects 
+                              ? 'text-red-600 dark:text-red-400' 
+                              : 'text-gray-900 dark:text-white'
+                          }`}>
+                            {user.stats?.services || 0}
+                          </span>
+                          <span className="text-xs text-gray-400">/ {user.maxProjects}</span>
+                          <span className="text-gray-300 dark:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity text-xs">✎</span>
+                        </button>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <StatusBadge status={user.status} />
