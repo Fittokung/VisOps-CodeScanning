@@ -19,6 +19,13 @@ export async function GET() {
     const userEmail = session.user.email || "";
     const isAdmin = ADMIN_EMAILS.includes(userEmail);
 
+    // Fetch user's quota limit
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { maxProjects: true }
+    });
+    const maxProjects = user?.maxProjects ?? 6;
+
     const services = await prisma.projectService.findMany({
       where: {
         group: {
@@ -95,7 +102,7 @@ export async function GET() {
       })),
     }));
 
-    return NextResponse.json({ services: transformedServices });
+    return NextResponse.json({ services: transformedServices, maxProjects });
   } catch (error) {
     console.error("Failed to fetch services:", error);
     return NextResponse.json(
