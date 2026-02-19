@@ -21,6 +21,7 @@ export async function GET() {
         status: true,
         image: true,
         createdAt: true,
+        maxProjects: true,
         accounts: {
           select: {
             provider: true,
@@ -63,6 +64,7 @@ export async function GET() {
         status: user.status,
         image: user.image,
         createdAt: user.createdAt,
+        maxProjects: user.maxProjects,
         provider,
         stats: {
           projects: totalProjects,
