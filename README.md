@@ -114,6 +114,16 @@ npm run worker:dev
 - **RabbitMQ Management**: http://localhost:15672 (guest/guest)
 - **Prisma Studio**: http://localhost:5555 (ถ้ารัน `npx prisma studio`)
 
+## Screenshots (UI Prototype)
+
+| User Dashboard | Admin - All Scans |
+|:-:|:-:|
+| ![User Dashboard](screenshots/user_dashboard.JPG) | ![Admin All Scan](screenshots/admin_all_scan.JPG) |
+
+| Admin - User Management | Admin - Templates |
+|:-:|:-:|
+| ![Admin User Management](screenshots/admin_user_management.JPG) | ![Admin Templates](screenshots/admin_templates.JPG) |
+
 ## Progress Status (Current Features)
 
 ### 1. Identity & Access Management (IAM)
@@ -127,6 +137,7 @@ npm run worker:dev
 - ✅ หน้าจัดการผู้ใช้ (User Management)
 - ✅ Admin สามารถ Approve หรือ Reject ผู้ใช้ได้แบบ Real-time
 - ✅ ระบบป้องกันความปลอดภัย (Self-lockout Protection) ป้องกัน Admin แก้ไขสิทธิ์ตนเอง
+- ✅ Per-User Quota Management: Admin สามารถกำหนด quota (จำนวน services สูงสุด) ของ user แต่ละคนได้
 - ✅ จัดการ Support Tickets จากผู้ใช้
 
 ### 3. Security & Middleware
@@ -145,7 +156,7 @@ npm run worker:dev
 - ✅ **Project Groups:** จัดกลุ่ม services ตาม repository
 - ✅ รองรับ private repositories พร้อม Git authentication
 - ✅ **Custom Dockerfile:** รองรับการ override Dockerfile
-- ✅ **Quota Management:** จำกัดสูงสุด 6 projects ต่อผู้ใช้
+- ✅ **Quota Management:** จำกัดจำนวน services ต่อผู้ใช้ (default: 6, admin แก้ไขได้) พร้อม UI แจ้งเตือนเมื่อ quota เต็ม
 - ✅ Soft delete สำหรับ projects
 
 ### 6. Scanning Workflow
